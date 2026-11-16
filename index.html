@@ -235,7 +235,7 @@ body{overflow:hidden}
 .logo{font-size:clamp(7px,1.3vw,14px)}
 .quick{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
 .dock{border-top:1px solid var(--line);background:var(--bg2);display:grid;grid-template-rows:minmax(0,1fr) auto auto;height:31vh;min-height:150px;transition:height .25s}
-.dock.min{height:auto}.dock.min .log,.dock.min .hints{display:none}
+.dock.min{height:auto;min-height:0}.dock.min .log{display:none}
 .dock .log{overflow:auto;padding:10px 14px 4px;font-size:12.5px}
 .dock .log div{white-space:pre-wrap;word-break:break-word}
 .dock .cl{display:flex;align-items:center;gap:10px;padding:6px 14px;border-top:1px solid var(--line)}
@@ -265,6 +265,43 @@ body{overflow:hidden}
   .dock{height:26vh;min-height:130px}
   .mod{padding:16px 14px 24px}
 }
+
+/* ===== terminal structure v2 ===== */
+.mhead{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px clamp(16px,2.4vw,30px);border-bottom:1px solid var(--line);background:rgba(13,12,18,.92);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);font-size:12px;color:var(--dim)}
+#mPath{color:var(--fg2)}#mPath b{color:var(--vio2);font-weight:700}
+.keys{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+kbd{font:inherit;font-size:10.5px;padding:1px 5px;border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;color:var(--fg2);margin:0 2px}
+.rail button kbd{margin-left:auto;opacity:.55}
+.rail button.on kbd{opacity:1;border-color:var(--vio)}
+#home.mod{padding:0}
+.main{display:flex;flex-direction:column}.main>.mhead{flex:none}.main>.mod{min-height:0;flex:none}.main>#home.on{flex:1 0 auto;min-height:0}
+#home .tag{max-width:26ch;line-height:1.35}
+#home .homeIn{min-height:100%;display:flex;flex-direction:column;justify-content:center}
+.side .box{position:relative;background:none;border:1px solid var(--line2);padding:16px 12px 12px;margin-top:6px}
+.side .bh{position:absolute;top:-8px;left:10px;padding:0 6px;background:var(--bg);margin:0;line-height:16px}
+.dhead{display:flex;justify-content:space-between;padding:6px 14px;border-bottom:1px solid var(--line);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);font-weight:800}
+.dock{grid-template-rows:auto minmax(0,1fr) auto auto}
+textarea#bRows{width:100%;background:var(--bg2);border:1px solid var(--line2);border-radius:10px;padding:10px 12px;font:inherit;font-size:13px;color:var(--fg);outline:0;resize:vertical;min-height:140px}
+textarea#bRows:focus{border-color:var(--vio);box-shadow:0 0 0 3px var(--vbg)}
+.tbl2{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl2 th{text-align:left;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:800;padding:6px 8px;border-bottom:1px solid var(--line)}
+.tbl2 td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+.tbl2 td.r,.tbl2 th.r{text-align:right}
+.tbl2 img{width:18px;height:18px;border-radius:50%;vertical-align:-4px;margin-right:6px;background:var(--bg2)}
+.tbl2 a{color:var(--vio2)}
+.curve{margin-top:12px;display:grid;gap:6px}
+.curve .cr{display:grid;grid-template-columns:110px minmax(0,1fr) 120px 70px;gap:10px;align-items:center;font-size:12.5px}
+.curve .bar{height:8px;border-radius:99px;background:var(--bg2);overflow:hidden}.curve .bar b{display:block;height:100%;background:var(--vio)}
+.pal{position:fixed;inset:0;z-index:85;display:none;align-items:flex-start;justify-content:center;padding-top:12vh;background:rgba(5,4,9,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.pal.on{display:flex}
+.pbox{width:min(560px,calc(100% - 24px));background:var(--panel);border:1px solid var(--line2);border-radius:14px;overflow:hidden;box-shadow:0 30px 80px -20px rgba(0,0,0,.7)}
+.pin{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.pin input{flex:1;background:none;border:0;outline:0;min-height:40px;font-size:15px}
+#palList{max-height:50vh;overflow:auto;padding:6px}
+#palList button{display:flex;width:100%;justify-content:space-between;gap:12px;min-height:40px;padding:0 12px;border-radius:8px;font-size:13px;color:var(--fg2);text-align:left}
+#palList button.on,#palList button:hover{background:var(--vbg);color:var(--fg)}
+#palList button span{color:var(--dim);font-size:12px}
+@media(max-width:820px){.mhead .keys{display:none}.rail button kbd{display:none}.curve .cr{grid-template-columns:80px minmax(0,1fr) 90px}.curve .cr span:last-child{display:none}}
 </style>
 </head>
 <body>
@@ -276,9 +313,10 @@ body{overflow:hidden}
     <button class="chip" id="connect"><i></i><span id="walLabel">connect</span></button>
   </header>
   <div class="body">
-    <aside class="rail" id="rail" aria-label="modules"><button data-m="home" class="on"><i>~</i>home</button><button data-m="send"><i>01</i>send</button><button data-m="request"><i>02</i>request</button><button data-m="link"><i>03</i>link</button><button data-m="claim"><i>04</i>claim</button><button data-m="trace"><i>05</i>trace</button><button data-m="route"><i>06</i>route</button><button data-m="live"><i>07</i>live</button><button data-m="zends"><i>08</i>zends</button><button data-m="vs"><i>09</i>vs zelle</button><button data-m="man"><i>10</i>man</button></aside>
+    <aside class="rail" id="rail" aria-label="modules"><button data-m="home" class="on"><i>~</i>home<kbd>h</kbd></button><button data-m="send"><i>01</i>send<kbd>1</kbd></button><button data-m="request"><i>02</i>request<kbd>2</kbd></button><button data-m="batch"><i>03</i>batch<kbd>3</kbd></button><button data-m="link"><i>04</i>link<kbd>4</kbd></button><button data-m="claim"><i>05</i>claim<kbd>5</kbd></button><button data-m="trace"><i>06</i>trace<kbd>6</kbd></button><button data-m="wallet"><i>07</i>wallet<kbd>7</kbd></button><button data-m="inspect"><i>08</i>tx<kbd>8</kbd></button><button data-m="route"><i>09</i>route<kbd>9</kbd></button><button data-m="live"><i>10</i>live<kbd>0</kbd></button><button data-m="zends"><i>11</i>zends</button><button data-m="vs"><i>12</i>vs zelle</button><button data-m="man"><i>13</i>man</button></aside>
     <div class="center">
       <main class="main" id="main">
+        <div class="mhead"><span id="mPath">zend:~</span><span class="keys"><kbd>⌘K</kbd> palette <kbd>/</kbd> console <kbd>1–0</kbd> modules</span></div>
         <section class="mod on" id="home">
           <canvas id="heroBg" aria-hidden="true"></canvas>
           <div class="homeIn">
@@ -288,7 +326,7 @@ body{overflow:hidden}
  ███    ██      ██  ██ ██ ██   ██
 ███████ ███████ ██   ████ ██████ <b>█</b></pre>
             <div class="tag">the privacy payment layer for Solana<span class="vi">.</span></div>
-            <div class="quick"><button class="btn v" data-m="send">send sealed</button><button class="btn g" data-m="request">request</button><button class="btn g" data-m="link">make a link</button><button class="btn g" data-m="trace">trace a wallet</button></div>
+            <div class="quick"><button class="btn v" data-m="send">send sealed</button><button class="btn g" data-m="route">how it works</button></div>
             <div class="ca" id="caSlot"></div>
           </div>
         </section>
@@ -339,9 +377,27 @@ body{overflow:hidden}
     </div>
   </section>
 
+  <section class="mod" id="batch">
+    <div class="w">
+      <div class="cmd"><b>zend:~$</b> <span>zend batch</span> <span class="dim"># 03</span></div>
+      <h2 class="h2">pay many. <span class="vi">each one sealed.</span></h2>
+      <p class="sub">One payment per line: an address or @contact, then an amount. Every line is its own sealed route, signed in your wallet, one after another.</p>
+      <div class="grid2">
+        <div class="panel">
+          <label class="lbl" for="bRows">payments</label>
+          <textarea id="bRows" rows="7" spellcheck="false" placeholder="@mom 0.1&#10;7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU 0.25"></textarea>
+          <div class="row" style="margin-top:12px;justify-content:space-between;gap:10px;flex-wrap:wrap"><div class="seg" id="bTok"><button class="on" data-t="sol">SOL</button><button data-t="usdc">USDC</button></div><span class="dim" id="bSum">0 payments</span></div>
+          <div class="sw on" id="bSeal" role="switch" aria-checked="true" tabindex="0"><div><b>sealed</b><span>solvers pay each one, not your wallet</span></div><div class="t"></div></div>
+          <button class="btn v go" id="bGo" disabled>add payments</button>
+        </div>
+        <div class="out" id="bOut"><div class="dim"># one row per payment, with its status and receipt</div></div>
+      </div>
+    </div>
+  </section>
+
   <section class="mod" id="link">
     <div class="w">
-      <div class="cmd rv"><b>zend:~$</b> <span>zend link</span> <span class="dim"># 03</span></div>
+      <div class="cmd rv"><b>zend:~$</b> <span>zend link</span> <span class="dim"># 04</span></div>
       <h2 class="h2 rv">no address? <span class="vi">send a link.</span></h2>
       <p class="sub rv">A fresh key is made in your browser and lives only after the # in the link. Fund it, send the link any way you like, and whoever opens it claims it to any wallet.</p>
       <div class="grid2">
@@ -360,7 +416,7 @@ body{overflow:hidden}
 
   <section class="mod" id="claim">
     <div class="w">
-      <div class="cmd rv"><b>zend:~$</b> <span>zend claim</span> <span class="dim"># 04</span></div>
+      <div class="cmd rv"><b>zend:~$</b> <span>zend claim</span> <span class="dim"># 05</span></div>
       <h2 class="h2 rv" id="cH">got a link? <span class="vi">claim it.</span></h2>
       <p class="sub rv">Paste a zend link, or open one. The link pays its own network fee, so you don't need SOL to claim.</p>
       <div class="grid2">
@@ -379,7 +435,7 @@ body{overflow:hidden}
 
   <section class="mod" id="trace">
     <div class="w">
-      <div class="cmd rv"><b>zend:~$</b> <span>zend trace</span> <span class="dim"># 05</span></div>
+      <div class="cmd rv"><b>zend:~$</b> <span>zend trace</span> <span class="dim"># 06</span></div>
       <h2 class="h2 rv">see who your wallet <span class="vi">gives away.</span></h2>
       <p class="sub rv">Every plain transfer draws a public line between two wallets. Scan any address to see the wallets its last 40 transactions link it to. Sealed zends never draw these lines.</p>
       <div class="grid2">
@@ -394,9 +450,42 @@ body{overflow:hidden}
     </div>
   </section>
 
+  <section class="mod" id="wallet">
+    <div class="w">
+      <div class="cmd"><b>zend:~$</b> <span>zend wallet</span> <span class="dim"># 07</span></div>
+      <h2 class="h2">what a wallet holds. <span class="vi">priced live.</span></h2>
+      <p class="sub">Every token account a wallet owns, read from Solana and priced by Jupiter.</p>
+      <div class="grid2">
+        <div class="panel">
+          <label class="lbl" for="wAddr">wallet</label>
+          <div class="fi"><input id="wAddr" placeholder="any Solana address or @contact" autocomplete="off" spellcheck="false"><button class="btn g sm" id="wMe">my wallet</button></div>
+          <button class="btn v go" id="wGo" disabled>read it</button>
+          <div class="note">public data. nothing is stored.</div>
+        </div>
+        <div class="out" id="wOut"><div class="dim"># holdings appear here</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="mod" id="inspect">
+    <div class="w">
+      <div class="cmd"><b>zend:~$</b> <span>zend tx</span> <span class="dim"># 08</span></div>
+      <h2 class="h2">read any transaction. <span class="vi">in plain words.</span></h2>
+      <p class="sub">Paste a signature. See who paid whom, what moved, the fee, and every program it touched.</p>
+      <div class="grid2">
+        <div class="panel">
+          <label class="lbl" for="xSig">signature</label>
+          <div class="fi"><input id="xSig" placeholder="transaction signature" autocomplete="off" spellcheck="false"><button class="btn g sm" id="xPaste">paste</button></div>
+          <button class="btn v go" id="xGo" disabled>decode</button>
+        </div>
+        <div class="out" id="xOut"><div class="dim"># the decoded transaction appears here</div></div>
+      </div>
+    </div>
+  </section>
+
   <section class="mod" id="route">
     <div class="w">
-      <div class="cmd rv"><b>zend:~$</b> <span>zend route</span> <span class="dim"># 06</span></div>
+      <div class="cmd rv"><b>zend:~$</b> <span>zend route</span> <span class="dim"># 09</span></div>
       <h2 class="h2 rv">how sealed works.</h2>
       <p class="sub rv">Every sealed zend is a NEAR Intents 1Click route from SOL to SOL, or USDC to USDC, with a different recipient.</p>
       <div class="pipe rv" id="pipe">
@@ -419,7 +508,7 @@ body{overflow:hidden}
 
   <section class="mod" id="live">
     <div class="w">
-      <div class="cmd rv"><b>zend:~$</b> <span>zend live</span> <span class="dim"># 07</span></div>
+      <div class="cmd rv"><b>zend:~$</b> <span>zend live</span> <span class="dim"># 10</span></div>
       <h2 class="h2 rv">live, <span class="vi">right now.</span></h2>
       <p class="sub rv">Real quotes from the solvers and real Solana numbers, refreshed every 30 seconds.</p>
       <div class="stats">
@@ -429,12 +518,13 @@ body{overflow:hidden}
         <div class="st rv"><div class="k">SOL</div><div class="v" id="nPx">—</div><div class="d" id="nFee">priority fee</div></div>
       </div>
       <div class="spark rv" id="nAt">connecting…</div>
+      <div class="panel" style="margin-top:20px"><div class="row" style="justify-content:space-between"><span class="lbl" style="margin:0">sealed rate curve · what arrives at each size</span><button class="btn g sm" id="curveGo">refresh</button></div><div class="curve" id="curve"></div></div>
     </div>
   </section>
 
   <section class="mod" id="zends">
     <div class="w">
-      <div class="cmd rv"><b>zend:~$</b> <span>zend zends</span> <span class="dim"># 08</span></div>
+      <div class="cmd rv"><b>zend:~$</b> <span>zend zends</span> <span class="dim"># 11</span></div>
       <h2 class="h2 rv">your zends. <span class="vi">this device only.</span></h2>
       <div class="hist rv" id="hist"></div>
       <div class="grid2" style="margin-top:40px">
@@ -451,7 +541,7 @@ body{overflow:hidden}
 
   <section class="mod" id="vs">
     <div class="w">
-      <div class="cmd rv"><b>zend:~$</b> <span>zend vs zelle</span> <span class="dim"># 09</span></div>
+      <div class="cmd rv"><b>zend:~$</b> <span>zend vs zelle</span> <span class="dim"># 12</span></div>
       <h2 class="h2 rv">Zelle sends dollars. <span class="vi">Zend sends Solana.</span></h2>
       <div class="tbl rv">
         <div class="r"><span></span><span>zelle</span><span>zend</span></div>
@@ -466,7 +556,7 @@ body{overflow:hidden}
 
   <section class="mod" id="man">
     <div class="w">
-      <div class="cmd rv"><b>zend:~$</b> <span>man zend</span> <span class="dim"># 10</span></div>
+      <div class="cmd rv"><b>zend:~$</b> <span>man zend</span> <span class="dim"># 13</span></div>
       <h2 class="h2 rv">straight answers.</h2>
       <div class="man rv">
         <div class="q"><button>What does sealed hide?<i>+</i></button><div class="a"><div><p>The on-chain link between your wallet and theirs. You pay a one-time NEAR Intents address and solvers pay your recipient from their own funds. It doesn't hide amounts, and the route sees both ends. It is not a zero-knowledge confidential transfer.</p></div></div></div>
@@ -480,6 +570,7 @@ body{overflow:hidden}
   </section>
       </main>
       <div class="dock" id="dock">
+        <div class="dhead"><span>console</span><span id="dJobs" class="dim"></span></div>
         <div class="log" id="log"></div>
         <div class="cl"><label for="cli">zend:~$</label><input id="cli" autocomplete="off" spellcheck="false" placeholder="type help, or try: send 0.1 sol to <address>"><span class="cur" id="cliCur"></span><button class="dockT" id="dockT" aria-label="resize console">▾</button></div>
         <div class="hints" id="hints"><button data-c="help">help</button><button data-c="quote 1 sol">quote 1 sol</button><button data-c="send">send</button><button data-c="link 0.05">link 0.05</button><button data-c="trace">trace</button><button data-c="live">live</button><button data-c="zends">zends</button></div>
@@ -494,11 +585,13 @@ body{overflow:hidden}
       <div class="box"><div class="bh">sealed rates</div>
         <div class="kv"><div><span>1 SOL →</span><b id="pR1">—</b></div><div><span>100 USDC →</span><b id="pR2">—</b></div><div><span>route time</span><b id="pRt">—</b></div><div><span>SOL</span><b id="pPx">—</b></div></div></div>
       <div class="box"><div class="bh">you</div><div class="kv" id="pYou"><div><span class="dim">connect a wallet to see balances</span></div></div></div>
+      <div class="box"><div class="bh">jobs</div><div id="pJobs" class="mini"><div><span>idle</span></div></div></div>
       <div class="box"><div class="bh">recent zends</div><div id="pRecent" class="mini"></div></div>
     </aside>
   </div>
 </div>
 
+<div class="pal" id="pal"><div class="pbox"><div class="pin"><span class="vi">›</span><input id="palIn" autocomplete="off" spellcheck="false" placeholder="jump to a module or run a command…"></div><div id="palList"></div></div></div>
 <div class="sheet" id="sheet"><div class="box"><h3 id="sheetH">connect a wallet</h3><div id="opts"></div><button class="btn g" style="width:100%;margin-top:12px" id="sheetX">cancel</button></div></div>
 <div class="toast" id="toast"></div>
 <script src="/assets/web3.min.js"></script>
