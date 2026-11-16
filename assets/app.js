@@ -25,6 +25,16 @@ const NET = { sol: null };
 function logger(el, mirror) { return (html, cls = '') => { for (const t of [el, mirror].filter(Boolean)) { if (t.dataset.fresh !== '1') { t.innerHTML = ''; t.dataset.fresh = '1'; } const d = document.createElement('div'); d.className = cls; d.innerHTML = html; t.appendChild(d); t.scrollTop = t.scrollHeight; } }; }
 const heroLog = $('#log');
 
+// =================================================================== the terminal: modules instead of a scrolling page
+const MODS = ['home', 'send', 'request', 'link', 'claim', 'trace', 'route', 'live', 'zends', 'vs', 'man'];
+function show(m, opts = {}) { if (!MODS.includes(m)) return; const el = $('#' + m); if (!el) return;
+  $$('.mod').forEach(x => x.classList.toggle('on', x === el)); $$('#rail button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  $('#main').scrollTop = 0; const h = el.querySelector('.h2'); if (h && !RM) { h._dec = 0; typeof decode === 'function' && decode(h); }
+  if (!opts.keepHash && !/[#&](c|r)=/.test(location.hash)) { try { history.replaceState(null, '', m === 'home' ? location.pathname + location.search : '#' + m); } catch (e) {} }
+  const rb = $(`#rail button[data-m="${m}"]`), rail = $('#rail'); if (rb && rail.scrollWidth > rail.clientWidth) rail.scrollTo({ left: rb.offsetLeft - (rail.clientWidth - rb.offsetWidth) / 2, behavior: 'smooth' });
+  if (opts.focus) { const f = el.querySelector('input:not([hidden])'); f && f.focus({ preventScroll: true }); } }
+document.addEventListener('click', e => { const b = e.target.closest('[data-m]'); if (b) { e.preventDefault(); show(b.dataset.m, { focus: !!b.closest('.quick') }); } });
+
 // =================================================================== intro (no words): an envelope is drawn, sealed, sent across the world; the world folds into the seal; dive
 const intro = (() => {
   const root = document.documentElement; if (!root.classList.contains('intro')) return { done: Promise.resolve() };
@@ -213,7 +223,7 @@ const contacts = (() => {
   function add(name, addr) { const n = norm(name); if (!n) throw new Error('give the contact a name'); if (!isAddr(addr)) throw new Error('that is not a Solana address'); const o = load(); o[n] = addr; save(o); render(); return n; }
   function render() { const el = $('#kList'); if (!el) return; const o = load(), ks = Object.keys(o).sort();
     el.innerHTML = ks.length ? ks.map(k => `<div class="hi"><div class="ic">@</div><div><div class="t">@${esc(k)}</div><div class="m">${o[k]}</div></div><div class="a"><button class="btn g sm" data-z="${esc(k)}">zend</button><button class="btn g sm" data-x="${esc(k)}">remove</button></div></div>`).join('') : '<div class="empty">no contacts yet. save one, then send with <b>send 0.1 sol to @name</b>.</div>';
-    $$('[data-z]', el).forEach(b => b.onclick = () => { $('#sTo').value = '@' + b.dataset.z; $('#sTo').dispatchEvent(new Event('input')); $('#send').scrollIntoView({ behavior: 'smooth' }); $('#sAmt').focus({ preventScroll: true }); });
+    $$('[data-z]', el).forEach(b => b.onclick = () => { $('#sTo').value = '@' + b.dataset.z; $('#sTo').dispatchEvent(new Event('input')); show('send'); $('#sAmt').focus({ preventScroll: true }); });
     $$('[data-x]', el).forEach(b => b.onclick = () => { const o2 = load(); delete o2[b.dataset.x]; save(o2); render(); }); }
   $('#kAdd').onclick = () => { try { const n = add($('#kName').value, $('#kAddr').value.trim()); $('#kName').value = ''; $('#kAddr').value = ''; toast('saved @' + n); } catch (e) { toast(e.message); } };
   return { load, resolve, add, render };
@@ -339,7 +349,7 @@ const claim = (() => {
   go.onclick = () => run();
   onWallet.push(() => { if (WAL.pk && !to.value) { to.value = WAL.pk; paint(); } });
   // opened from a link: fill it in and bring the claim section up first
-  if (/[#&]c=/.test(location.hash)) { inp.value = location.origin + '/' + location.hash; $('#cH').innerHTML = 'someone zent you <span class="vi">something.</span>'; inspect(); setTimeout(() => $('#claim').scrollIntoView({ behavior: 'instant', block: 'start' }), 60); }
+  if (/[#&]c=/.test(location.hash)) { inp.value = location.origin + '/' + location.hash; $('#cH').innerHTML = 'someone zent you <span class="vi">something.</span>'; inspect(); show('claim', { keepHash: true }); }
   return { sweep, run, set: s => { inp.value = s; inspect(); } };
 })();
 
@@ -354,7 +364,7 @@ const live = (() => {
     if (n.q.sol) { scr($('#nSol'), fmt(n.q.sol.out, 5) + ' SOL'); $('#nSolD').textContent = `they get · ~${n.q.sol.t || 20} s · ${((1 - n.q.sol.out) * 100).toFixed(2)}%`; }
     if (n.q.usdc) { scr($('#nUsdc'), fmt(n.q.usdc.out, 3) + ' USDC'); $('#nUsdcD').textContent = `they get · ~${n.q.usdc.t || 20} s · ${((1 - n.q.usdc.out / 100) * 100).toFixed(2)}%`; }
     scr($('#nTps'), n.tps ? fmt(n.tps, 0) : '—'); scr($('#nPx'), n.sol ? usd(n.sol) : '—'); $('#nFee').textContent = n.prio != null ? `priority fee ${fmt(n.prio, 0)} µlamports` : 'priority fee —';
-    $('#nAt').textContent = `updated ${new Date(n.at).toLocaleTimeString()} · solvers via NEAR Intents 1Click · Solana mainnet`; send.requote(); link.requote();
+    $('#nAt').textContent = `updated ${new Date(n.at).toLocaleTimeString()} · solvers via NEAR Intents 1Click · Solana mainnet`; send.requote(); link.requote(); try { side.net(n); } catch (e) {}
   } catch (e) { $('#nAt').textContent = 'live data is offline right now'; } return last; }
   return { load, get: () => last };
 })();
@@ -383,7 +393,7 @@ const request = (() => {
       const btn = $('#rPayGo'), sw = $('#rSeal'), pp = () => { sw.classList.toggle('on', sealed); sw.setAttribute('aria-checked', sealed); btn.textContent = WAL.pk ? `pay ${fmt(a)} ${tok.toUpperCase()}${sealed ? ' sealed' : ''}` : 'connect a wallet'; };
       sw.onclick = () => { sealed = !sealed; pp(); }; sw.onkeydown = e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); sealed = !sealed; pp(); } };
       btn.onclick = async () => { if (!WAL.pk) return openSheet(); send.set(a, tok, m[1], sealed); out.dataset.fresh = '0'; out.innerHTML = ''; await send.run(out); };
-      onWallet.push(pp); pp(); out.innerHTML = '<div class="dim"># payment output appears here</div>'; setTimeout(() => $('#request').scrollIntoView({ behavior: 'instant', block: 'start' }), 60); } }
+      onWallet.push(pp); pp(); out.innerHTML = '<div class="dim"># payment output appears here</div>'; show('request', { keepHash: true }); } }
   return { run, set: (a, tok, addr, m) => { amt.value = String(a); st.token = tok; if (addr) to.value = addr; memo.value = m || ''; paint(); } };
 })();
 
@@ -430,7 +440,7 @@ const trace = (() => {
 const cli = (() => {
   const inp = $('#cli'), log = logger(heroLog); let histI = -1; const past = [];
   const out = (h, c) => log(h, c), cmdEcho = s => log(`<span class="vi">zend:~$</span> ${esc(s)}`);
-  const go = id => $(id).scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'start' });
+  const go = id => show(id.replace('#', ''));
   const HELP = [['send 0.1 sol to &lt;address|@name&gt;', 'sealed send (add --open for a plain transfer)'], ['request 0.5 sol [for dinner]', 'make a request link with a QR'], ['trace [address]', 'see who a wallet is linked to'], ['add @name &lt;address&gt;', 'save a contact · contacts to list'], ['send 25 usdc to &lt;address&gt;', 'USDC works too'], ['link 0.05', 'make a payment link (add --sealed)'], ['claim &lt;link&gt;', 'claim a link to your wallet'], ['quote 1 sol', 'live sealed quote'], ['live', 'solvers, SOL price, Solana TPS'], ['zends', 'your recent zends'], ['connect · disconnect · whoami', 'wallet'], ['route · man · vs', 'jump to a section'], ['clear', 'clear the screen']];
   async function exec(raw) {
     const s = raw.trim(); if (!s) return; cmdEcho(s); past.unshift(s); histI = -1; const a = s.split(/\s+/), c = a[0].toLowerCase();
@@ -455,7 +465,7 @@ const cli = (() => {
         out(`  sealed 1 SOL   → ${n.q.sol ? fmt(n.q.sol.out, 5) + ' SOL · ~' + (n.q.sol.t || 20) + ' s' : '—'}`); out(`  sealed 100 USDC → ${n.q.usdc ? fmt(n.q.usdc.out, 3) + ' USDC · ~' + (n.q.usdc.t || 20) + ' s' : '—'}`);
         out(`  SOL ${n.sol ? usd(n.sol) : '—'} · solana ${n.tps ? fmt(n.tps, 0) + ' tps' : '—'}`); return; }
       if (c === 'zends' || c === 'history') { const l = hist.load().slice(0, 6); if (!l.length) out('no zends yet', 'dim'); l.forEach(it => out(`  ${new Date(it.t).toLocaleDateString()}  ${(fmt(it.amount) + ' ' + it.token.toUpperCase()).padEnd(14, ' ')} ${it.mode === 'link' ? 'link' : '→ ' + short(it.to)}  <span class="dim">${it.sealed ? 'sealed' : 'open'} · ${it.status}</span>`)); if (a[1] !== '-q') go('#zends'); return; }
-      const sec = { send: '#send', request: '#request', link: '#link', claim: '#claim', trace: '#trace', route: '#route', live: '#live', man: '#man', vs: '#vs', zelle: '#vs', faq: '#man' }[c]; if (sec) { go(sec); return; }
+      const sec = { home: '#home', send: '#send', request: '#request', link: '#link', claim: '#claim', trace: '#trace', route: '#route', how: '#route', live: '#live', man: '#man', vs: '#vs', zelle: '#vs', faq: '#man' }[c]; if (sec) { go(sec); return; }
       out(`command not found: ${esc(c)} · type <b>help</b>`, 'bad');
     } catch (e) { out(`✕ ${esc(errText(e))}`, 'bad'); }
   }
@@ -463,7 +473,8 @@ const cli = (() => {
     else if (e.key === 'ArrowUp') { if (histI < past.length - 1) { histI++; inp.value = past[histI]; e.preventDefault(); } }
     else if (e.key === 'ArrowDown') { if (histI > 0) { histI--; inp.value = past[histI]; } else { histI = -1; inp.value = ''; } } });
   $$('#hints button').forEach(b => b.onclick = () => { const c = b.dataset.c; if (c === 'send') { inp.value = 'send 0.1 sol to '; inp.focus(); return; } exec(c); });
-  addEventListener('keydown', e => { if (e.key === '/' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); inp.focus(); inp.scrollIntoView({ block: 'center' }); } });
+  addEventListener('keydown', e => { if (e.key === '/' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); $('#dock').classList.remove('min'); inp.focus(); } });
+  $('#dockT').onclick = () => { const d = $('#dock'); d.classList.toggle('min'); $('#dockT').textContent = d.classList.contains('min') ? '▴' : '▾'; };
   async function boot() { heroLog.dataset.fresh = '1'; const lines = ['<span class="dim">connecting to NEAR Intents solvers…</span>', '<span class="dim">reading Solana mainnet…</span>'];
     for (const l of lines) { out(l); await sleep(RM ? 0 : 260); }
     const n = await live.load(); out(n ? `<span class="ok">✓</span> sealed routes up · 1 SOL → ${n.q.sol ? fmt(n.q.sol.out, 5) : '—'} SOL · solana ${n.tps ? fmt(n.tps, 0) + ' tps' : 'online'}` : '<span class="warn">live data is offline right now; sends still work</span>');
@@ -486,10 +497,7 @@ function fly(from) { if (RM || !from) return; const r = from.getBoundingClientRe
   new IntersectionObserver(([e]) => { const was = on; on = e.isIntersecting && !RM; if (on && !was) { t0 = performance.now(); requestAnimationFrame(loop); } }).observe($('#pipe'));
   const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('vis'); if (e.target.classList.contains('h2')) decode(e.target); io.unobserve(e.target); } }), { rootMargin: '0px 0px -6% 0px' });
   $$('.rv').forEach(el => io.observe(el)); setTimeout(() => $$('.rv').forEach(el => el.classList.add('vis')), 5000);
-  const links = $$('#nav a'); const so = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id)); }), { rootMargin: '-45% 0px -50% 0px' });
-  ['send', 'request', 'link', 'claim', 'trace', 'route', 'live', 'zends', 'man'].forEach(id => so.observe($('#' + id)));
   $$('.q button').forEach(b => b.onclick = () => { const q = b.parentElement, open = q.classList.contains('open'); $$('.q.open').forEach(o => o.classList.remove('open')); if (!open) q.classList.add('open'); });
-  $$('a[href^="#"]').forEach(a => a.addEventListener('click', e => { const t = $(a.getAttribute('href')); if (t) { e.preventDefault(); t.scrollIntoView({ behavior: RM ? 'auto' : 'smooth' }); } }));
 })();
 (async () => { try { const c = await api('cfg'); if (c.sol && !NET.sol) NET.sol = c.sol;
   if (c.ca) { $('#caSlot').innerHTML = `<span class="dim">$ZEND</span><code>${esc(c.ca)}</code><button class="btn g sm" id="caCp">copy</button><a class="btn g sm" target="_blank" rel="noopener" href="https://pump.fun/coin/${c.ca}">buy</a><a class="btn g sm" target="_blank" rel="noopener" href="https://dexscreener.com/solana/${c.ca}">chart</a>${c.x ? `<a class="btn g sm" target="_blank" rel="noopener" href="${esc(c.x)}">𝕏</a>` : ''}`; $('#caCp').onclick = () => { navigator.clipboard.writeText(c.ca); toast('address copied'); }; }
@@ -500,7 +508,6 @@ function decode(el) { if (RM || el._dec) return; el._dec = 1; const nodes = []; 
   const total = nodes.reduce((a, [, t]) => a + t.length, 0), G = 'abcdefghijklmnopqrstuvwxyz#%/=+', T0 = performance.now();
   const f = now => { const k = clamp((now - T0) / 700, 0, 1); let seen = 0; nodes.forEach(([n, t]) => { n.textContent = t.split('').map((ch, i) => { const at = (seen + i) / total; return ch === ' ' || at < k ? ch : at < k + .25 ? G[Math.random() * G.length | 0] : ' '; }).join(''); seen += t.length; }); if (k < 1) requestAnimationFrame(f); else nodes.forEach(([n, t]) => n.textContent = t); };
   requestAnimationFrame(f); }
-(() => { const bar = $('#bar'); const u = () => { const h = document.documentElement.scrollHeight - innerHeight; bar.style.transform = `scaleX(${h > 0 ? scrollY / h : 0})`; }; addEventListener('scroll', u, { passive: true }); u(); })();
 const wordmark = (() => { const el = $('.logo'), html = el.innerHTML, txt = el.textContent, G = '░▒▓█#%';
   const run = () => { if (RM) return; const cols = Math.max(...txt.split('\n').map(l => l.length)), T0 = performance.now(), st = []; let col = 0; for (let i = 0; i < txt.length; i++) { st.push(col / cols * 700 + Math.random() * 260); col = txt[i] === '\n' ? 0 : col + 1; }
     const f = now => { const t = now - T0; let done = true; el.textContent = txt.split('').map((ch, i) => { if (ch === ' ' || ch === '\n') return ch; if (t < st[i]) { done = false; return t < st[i] - 220 ? ' ' : G[Math.random() * 6 | 0]; } return ch; }).join(''); if (!done) requestAnimationFrame(f); else el.innerHTML = html; }; requestAnimationFrame(f); };
@@ -513,13 +520,13 @@ const wordmark = (() => { const el = $('.logo'), html = el.innerHTML, txt = el.t
   const C = [[-74, 40.7], [-122.4, 37.8], [-80.2, 25.8], [-99.1, 19.4], [-46.6, -23.5], [-0.1, 51.5], [3.4, 6.5], [36.8, -1.3], [72.9, 19.1], [77.2, 28.6], [90.4, 23.8], [121, 14.6], [139.7, 35.7], [151.2, -33.9], [55.3, 25.3], [28, -26.2]];
   const box = () => { const mw = Math.max(W, H * 2.4) * 1.05, mh = mw / 3; return { mw, mh, ox: (W - mw) / 2, oy: (H - mh) / 2 + H * .06 }; };
   const P = ([lon, lat]) => { const b = box(); return [b.ox + (lon + 180) / 360 * b.mw, b.oy + .583 * b.mh - lat / 360 * b.mw]; };
-  const fit = () => { dpr = Math.min(2, devicePixelRatio || 1); W = wrap.clientWidth; H = wrap.clientHeight; cv.width = W * dpr; cv.height = H * dpr; F = W < 700 ? 9 : 11; cw = F * .6; ch = F * 1.18; COLS = Math.ceil(W / cw); ROWS = Math.ceil(H / ch);
+  const fit = () => { dpr = Math.min(2, devicePixelRatio || 1); W = wrap.clientWidth; H = wrap.clientHeight; if (W < 20 || H < 20) { base = null; return; } cv.width = W * dpr; cv.height = H * dpr; F = W < 700 ? 9 : 11; cw = F * .6; ch = F * 1.18; COLS = Math.ceil(W / cw); ROWS = Math.ceil(H / ch);
     if (!img.complete || !img.naturalWidth) return; const b = box(), t = document.createElement('canvas'); t.width = COLS; t.height = ROWS; const tx = t.getContext('2d'); tx.drawImage(img, b.ox / cw, b.oy / ch, b.mw / cw, b.mh / ch); const D = tx.getImageData(0, 0, COLS, ROWS).data;
     base = document.createElement('canvas'); base.width = cv.width; base.height = cv.height; const bx = base.getContext('2d'); bx.setTransform(dpr, 0, 0, dpr, 0, 0); bx.font = `700 ${F}px 'JetBrains Mono', monospace`; bx.textBaseline = 'top';
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) { const l = D[(r * COLS + c) * 4]; if (l > 120) { const h = hash(c, r); bx.fillStyle = h > .9 ? '#3a3550' : '#2a2638'; bx.fillText(h > .88 ? '+' : '·', c * cw, r * ch); } else if (r % 5 === 0 && c % 8 === 0) { bx.fillStyle = '#1b1925'; bx.fillText('+', c * cw, r * ch); } } };
   const spawn = now => { const a = C[Math.random() * C.length | 0]; let b = C[Math.random() * C.length | 0]; if (a === b) return; flights.push({ a: P(a), b: P(b), t0: now, dur: 2600 + Math.random() * 1800, k: .18 + Math.random() * .16 }); };
   const qp = (f, t) => { const [x1, y1] = f.a, [x2, y2] = f.b, d = Math.hypot(x2 - x1, y2 - y1), cx = (x1 + x2) / 2, cy = (y1 + y2) / 2 - d * f.k; return [(1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * cx + t * t * x2, (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * cy + t * t * y2]; };
-  const frame = now => { requestAnimationFrame(frame); if (!vis || document.hidden || now - last < 33 || !base) return; last = now;
+  const frame = now => { requestAnimationFrame(frame); if (!vis || document.hidden || now - last < 33) return; if (wrap.clientWidth !== W || wrap.clientHeight !== H) fit(); if (!base) return; last = now;
     if (now > next && flights.length < (W < 700 ? 3 : 6)) { spawn(now); next = now + 500 + Math.random() * 900; }
     const ox = (mx - .5) * -14, oy = (my - .5) * -8; x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, cv.width, cv.height); x.drawImage(base, ox * dpr, oy * dpr);
     x.setTransform(dpr, 0, 0, dpr, ox * dpr, oy * dpr); x.font = `700 ${F}px 'JetBrains Mono', monospace`; x.textBaseline = 'top';
@@ -535,6 +542,25 @@ const wordmark = (() => { const el = $('.logo'), html = el.innerHTML, txt = el.t
   if (RM) vis = false;
 })();
 
+// =================================================================== the side pane and the ticker: live chain data
+const side = (() => {
+  const set = (id, v) => { const e = $('#' + id); if (e && e.textContent !== String(v)) { e.textContent = v; e.classList.remove('flash'); void e.offsetWidth; e.classList.add('flash'); } };
+  const T = { tps: [] };
+  async function slot() { try { const sl = await conn.getSlot(); set('tSlot', fmt(sl, 0)); set('pSlot', fmt(sl, 0)); } catch (e) {} }
+  async function epoch() { try { const ep = await conn.getEpochInfo(); const pc = ep.slotIndex / ep.slotsInEpoch * 100; set('tEpoch', `${ep.epoch} · ${pc.toFixed(1)}%`); set('pEpoch', `${ep.epoch} · ${pc.toFixed(1)}%`); $('#pEpBar').style.width = pc + '%'; } catch (e) {} }
+  function net(n) { if (!n) return; if (n.tps) { set('tTps', fmt(n.tps, 0)); set('pTps', fmt(n.tps, 0)); T.tps.push(n.tps); spark($('#pSpark'), T.tps); } set('pPrio', n.prio != null ? fmt(n.prio, 0) + ' µL' : '—');
+    if (n.sol) { set('tPx', usd(n.sol)); set('pPx', usd(n.sol)); } if (n.q.sol) { set('tRate', fmt(n.q.sol.out, 5)); set('pR1', fmt(n.q.sol.out, 5) + ' SOL'); set('pRt', '~' + (n.q.sol.t || 20) + ' s'); } if (n.q.usdc) set('pR2', fmt(n.q.usdc.out, 3) + ' USDC'); }
+  async function you() { const el = $('#pYou'); if (!WAL.pk) { el.innerHTML = '<div><span class="dim">connect a wallet to see balances</span></div>'; return; }
+    let sol = null, u = null; try { sol = (await conn.getBalance(new W3.PublicKey(WAL.pk))) / 1e9; } catch (e) {}
+    try { const r = await conn.getTokenAccountsByOwner(new W3.PublicKey(WAL.pk), { mint: new W3.PublicKey(USDC) }); u = 0; for (const a of r.value) { const d = a.account.data; u += Number(new DataView(d.buffer, d.byteOffset + 64, 8).getBigUint64(0, true)) / 1e6; } } catch (e) {}
+    el.innerHTML = `<div><span>wallet</span><b><a target="_blank" rel="noopener" href="${ac$(WAL.pk)}">${short(WAL.pk)}</a></b></div><div><span>SOL</span><b>${sol == null ? '—' : fmt(sol, 4)}</b></div><div><span>USDC</span><b>${u == null ? '—' : fmt(u, 2)}</b></div>${sol != null && NET.sol ? `<div><span>value</span><b>${usd(sol * NET.sol + (u || 0))}</b></div>` : ''}`; }
+  function recent() { const l = hist.load().slice(0, 5); $('#pRecent').innerHTML = l.length ? l.map(it => `<div><b>${fmt(it.amount)} ${it.token.toUpperCase()}</b><span>${it.mode === 'link' ? 'link' : short(it.to)} · ${it.status === 'done' ? 'delivered' : it.status}</span></div>`).join('') : '<div><span>none yet</span></div>'; }
+  slot(); epoch(); setInterval(() => !document.hidden && slot(), 2500); setInterval(() => !document.hidden && epoch(), 60000); setInterval(recent, 4000); recent();
+  onWallet.push(you); setInterval(() => !document.hidden && WAL.pk && you(), 30000);
+  return { net, you, recent };
+})();
+
 hist.render(); contacts.render(); hist.poll(); setInterval(() => hist.poll(), 20000); silent(); setInterval(() => live.load(), 30000);
+{ const m = (location.hash.match(/^#([a-z]+)$/) || [])[1]; if (m && MODS.includes(m)) show(m, { keepHash: true }); }
 intro.done.then(() => { wordmark.run(); cli.boot(); });
 })();
