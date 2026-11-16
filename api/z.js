@@ -13,7 +13,9 @@ const err = (res, code, msg) => res.status(code).json({ error: msg });
 const body = req => { if (req.body && typeof req.body === 'object') return req.body; try { return JSON.parse(req.body || '{}'); } catch (e) { return {}; } };
 async function rpc(payload) {
   let last; for (const u of RPCS) { try { const r = await fetch(u, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(12000) });
-    if (r.status === 429 || r.status >= 500) { last = new Error('rpc ' + r.status); continue; } return await r.json(); } catch (e) { last = e; } }
+    if (r.status === 429 || r.status >= 500) { last = new Error('rpc ' + r.status); continue; }
+    const j = await r.json(); if (j && j.error && /blocked|personal token|indexed|not supported|disabled|unavailable|exceeded|too many|busy/i.test(String(j.error.message || ''))) { last = j; continue; } return j; } catch (e) { last = e; } }
+  if (last && !(last instanceof Error)) return last;
   throw last || new Error('rpc down');
 }
 module.exports = async (req, res) => {
