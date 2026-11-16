@@ -177,8 +177,8 @@ function bail() { html.classList.remove('landing'); root.remove(); window.zendLa
 function start() { ui().style.visibility = ''; state = 'intro'; T0 = performance.now(); cam.fov = 32; fit(); root.classList.remove('ready'); setTimeout(() => root.classList.add('ready'), RM ? 0 : 900); cancelAnimationFrame(raf); loop(); }
 function fit() { if (!R) return; const w = innerWidth, h = innerHeight; R.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix();
   const D = 10, visH = 2 * D * Math.tan(THREE.MathUtils.degToRad(16)), visW = visH * cam.aspect, port = cam.aspect < 1;
-  const hw = Math.min(visW * (port ? .8 : .4), visH * .52 * 1.5455), s = hw / 3.4;
-  fitInfo = { s, port, visW, visH, hy: port ? .32 : .42, rx: port ? visW * .42 : Math.min(visW * .34, 5.2), gy: port ? -11.2 : -19.6, gz: port ? -2 : -8, gr: port ? 9 : 16 };
+  const hw = Math.min(visW * (port ? .64 : .29), visH * .36 * 1.5455), s = hw / 3.4;
+  fitInfo = { s, port, visW, visH, hy: port ? .62 : .62, rx: port ? visW * .5 : Math.min(visW * .27, 4.2), gy: port ? -11.2 : -19.6, gz: port ? -2 : -8, gr: port ? 9 : 16 };
   gGroup.position.set(0, fitInfo.gy, fitInfo.gz); gGroup.scale.setScalar(fitInfo.gr / 16);
   // put the buttons just under the hero envelope
   cam.position.set(0, .25, 10); cam.lookAt(0, .1, 0); cam.updateMatrixWorld();
@@ -195,7 +195,7 @@ function frame(now) {
   hero.scale.setScalar(s); hero.position.set(0, hy + (1 - e) * 6 + Math.sin(tt * 1.1) * .06 * s, 0);
   if (state !== 'dive') hero.rotation.set(-.9 * (1 - e) + ptr.sy * .12 + .05, flip + ptr.sx * .32 + Math.sin(tt * .5) * .1, Math.sin(tt * .7) * .025 - (1 - e) * .3);
   orbs.forEach((o, i) => { const ap = RM ? 1 : ease.out(cl((t - .55 - i * .12) / .9)), th = tt * .2 + i * Math.PI / 2, out = state === 'dive' ? 1 + ease.inOut(cl((now - D0) / 900)) * 3 : 1;
-    o.scale.setScalar(s * (port ? .46 : .42) * ap); o.position.set(Math.cos(th) * rx * out, port ? hy + s * (1.7 + (i % 2) * .38) + Math.sin(th * 2 + i) * .12 * s : hy + Math.sin(th * 2 + i) * .3 * s + (i % 2 ? .55 : -.4) * s, -2.7 + Math.sin(th) * 1.05);
+    o.scale.setScalar(s * (port ? .5 : .5) * ap); if (port) o.position.set(Math.cos(th) * rx * out, hy + s * (.75 + Math.sin(th) * 1.3) * out, -2.4 - Math.abs(Math.sin(th * .5 + i)) * .6); else o.position.set(Math.cos(th) * rx * out, hy + Math.sin(th * 2 + i) * .3 * s + (i % 2 ? .55 : -.4) * s, -2.7 + Math.sin(th) * 1.05);
     o.rotation.set(.12 + Math.sin(tt * .6 + i) * .1, -Math.cos(th) * .7 + Math.sin(tt * .3 + i) * .2, Math.sin(tt * .4 + i * 2) * .12); });
   // camera: slight parallax, or the dive through the seal
   if (state === 'dive') { const d = (now - D0) / 1000, a = ease.inOut(cl(d / .5)), b = ease.inOut(cl((d - .35) / .95));
