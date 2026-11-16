@@ -70,6 +70,7 @@ module.exports = async (req, res) => {
       if (req.method !== 'POST') return err(res, 405, 'POST only');
       const b = body(req), list = Array.isArray(b) ? b : [b];
       if (!list.length || list.length > 20 || list.some(x => !x || !ALLOW.has(x.method))) return err(res, 400, 'method not allowed');
+      if (Array.isArray(b)) return res.status(200).json(await Promise.all(list.map(x => rpc(x).catch(e => ({ jsonrpc: '2.0', id: x.id, error: { code: -32000, message: String(e.message || e) } })))));   // fan a batch out: some public RPCs refuse batches
       return res.status(200).json(await rpc(b));
     }
     return err(res, 404, 'unknown op');
