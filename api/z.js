@@ -8,7 +8,7 @@ const ONECLICK = 'https://1click.chaindefuser.com/v0';
 const RPCS = [process.env.RPC_URL, 'https://solana-rpc.publicnode.com', 'https://api.mainnet-beta.solana.com'].filter(Boolean);
 const ASSET = { sol: { id: 'nep141:sol.omft.near', dec: 9 }, usdc: { id: 'nep141:sol-5ce3bf3a31af18be40ba30f721101b4341690186.omft.near', dec: 6 } };
 const B58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-const ALLOW = new Set(['getSignaturesForAddress', 'getTransaction', 'getRecentPerformanceSamples', 'getRecentPrioritizationFees', 'getLatestBlockhash', 'getBalance', 'getAccountInfo', 'getTokenAccountsByOwner', 'getSignatureStatuses', 'getMinimumBalanceForRentExemption', 'sendTransaction', 'getFeeForMessage', 'getTokenAccountBalance']);
+const ALLOW = new Set(['getSlot', 'getEpochInfo', 'getSignaturesForAddress', 'getTransaction', 'getRecentPerformanceSamples', 'getRecentPrioritizationFees', 'getLatestBlockhash', 'getBalance', 'getAccountInfo', 'getTokenAccountsByOwner', 'getSignatureStatuses', 'getMinimumBalanceForRentExemption', 'sendTransaction', 'getFeeForMessage', 'getTokenAccountBalance']);
 const err = (res, code, msg) => res.status(code).json({ error: msg });
 const body = req => { if (req.body && typeof req.body === 'object') return req.body; try { return JSON.parse(req.body || '{}'); } catch (e) { return {}; } };
 async function rpc(payload) {
