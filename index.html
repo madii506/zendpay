@@ -14,6 +14,8 @@
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<script>if(location.pathname==='/'&&!location.hash&&!/[?&](app|nointro)\b/.test(location.search))document.documentElement.classList.add('landing')</script>
+<link rel="modulepreload" href="/assets/three.module.min.js">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0d0c12;--bg2:#13111b;--panel:#16141f;--line:#262333;--line2:#34304a;--fg:#ebe9f3;--fg2:#a9a5ba;--dim:#6f6b82;--vio:#8b5cff;--vio2:#b49bff;--vbg:rgba(139,92,255,.12);--ok:#3ddc84;--warn:#ffb547;--bad:#ff6b5a;--mono:'JetBrains Mono',ui-monospace,Menlo,monospace}
@@ -268,6 +270,30 @@ kbd{font:inherit;font-size:10.5px;padding:1px 5px;border:1px solid var(--line2);
 #home.mod{padding:0}
 .main{display:flex;flex-direction:column}.main>.mhead{flex:none}.main>.mod{min-height:0;flex:none}.main>#home.on{flex:1 0 auto;min-height:0}
 #home .tag{max-width:26ch;line-height:1.35}
+/* landing: the sealed envelope */
+.land{position:fixed;inset:0;z-index:70;display:none;background:#06050b;transition:opacity .45s ease}
+html.landing .land{display:block}
+html.landing body{overflow:hidden}
+.land.out{opacity:0;pointer-events:none}
+.land canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:manipulation}
+.land .lui{position:absolute;left:0;right:0;top:72%;display:flex;justify-content:center;flex-wrap:wrap;gap:14px;padding:0 16px;opacity:0;transform:translateY(12px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.8,.2,1)}
+.land.ready .lui{opacity:1;transform:none}
+.land.diving .lui{opacity:0;transform:translateY(10px);transition-duration:.25s}
+.lb{min-height:54px;padding:0 26px;border-radius:999px;font-weight:800;font-size:14px;letter-spacing:.09em;text-transform:uppercase;display:inline-flex;align-items:center;gap:12px;transition:transform .15s,box-shadow .15s}
+.lb.lv{background:var(--vio);color:#fff;box-shadow:0 5px 0 #4524b8}
+.lb.lw{background:#f4f1fb;color:#15121f;box-shadow:0 5px 0 #7d74a3}
+.lb:hover{transform:translateY(-2px)}.lb.lv:hover{box-shadow:0 7px 0 #4524b8}.lb.lw:hover{box-shadow:0 7px 0 #7d74a3}
+.lb:active{transform:translateY(4px)}.lb.lv:active{box-shadow:0 1px 0 #4524b8}.lb.lw:active{box-shadow:0 1px 0 #7d74a3}
+.lb .ar{font-size:17px;line-height:1}
+.lb .dot{width:10px;height:10px;border-radius:50%;background:#ff4f7b;flex:none}
+.lb.lw.on .dot{background:#22c77a}
+.lb.lw.on span{text-transform:none;letter-spacing:.02em}
+.land .flash{position:absolute;inset:0;background:#8b5cff;opacity:0;pointer-events:none}
+.land .flash.go{animation:lflash .55s ease forwards}
+@keyframes lflash{0%{opacity:0}35%{opacity:1}100%{opacity:1}}
+@media(max-width:520px){.lb{font-size:13px;padding:0 18px;min-height:52px;gap:9px;width:min(290px,100%);justify-content:center}.land .lui{flex-direction:column;align-items:center;gap:12px}}
+@media(max-width:360px){.lb{padding:0 14px;letter-spacing:.05em}}
+
 #home .homeIn{min-height:100%;display:flex;flex-direction:column;justify-content:center}
 .side .box{position:relative;background:none;border:1px solid var(--line2);padding:16px 12px 12px;margin-top:6px}
 .side .bh{position:absolute;top:-8px;left:10px;padding:0 6px;background:var(--bg);margin:0;line-height:16px}
@@ -297,9 +323,12 @@ textarea#bRows:focus{border-color:var(--vio);box-shadow:0 0 0 3px var(--vbg)}
 </style>
 </head>
 <body>
+<div class="land" id="land" aria-label="ZEND"><canvas aria-hidden="true"></canvas><div class="flash"></div>
+  <div class="lui"><button class="lb lv" id="lEnter">enter terminal <span class="ar">→</span></button><button class="lb lw" id="lConnect"><i class="dot"></i><span>connect wallet</span></button></div>
+</div>
 <div class="app" id="app">
   <header class="top">
-    <button class="brand" data-m="home" aria-label="home"><b>ZEND</b><span class="vi">█</span></button>
+    <button class="brand" id="brand" aria-label="ZEND home"><b>ZEND</b><span class="vi">█</span></button>
     <div class="tick" id="tick"><span>slot <b id="tSlot">—</b></span><span>epoch <b id="tEpoch">—</b></span><span>tps <b id="tTps">—</b></span><span>SOL <b id="tPx">—</b></span><span>sealed 1 SOL → <b id="tRate">—</b></span></div>
     <button class="chip" id="connect"><i></i><span id="walLabel">connect</span></button>
   </header>
@@ -587,5 +616,6 @@ textarea#bRows:focus{border-color:var(--vio);box-shadow:0 0 0 3px var(--vbg)}
 <script src="/assets/web3.min.js"></script>
 <script src="/assets/qrcode.js"></script>
 <script src="/assets/app.js"></script>
+<script type="module" src="/assets/land.js"></script>
 </body>
 </html>
