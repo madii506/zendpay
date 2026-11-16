@@ -35,6 +35,13 @@ module.exports = async (req, res) => {
       res.setHeader('cache-control', 's-maxage=20, stale-while-revalidate=60');
       return res.status(200).json({ at: new Date().toISOString(), sol: px ? +(px.So11111111111111111111111111111111111111112 || {}).usdPrice || null : null, tps, prio: med, q: { sol: a, usdc: b } });
     }
+    if (op === 'px') { // prices + symbols for a list of mints (Jupiter)
+      const ids = String((req.query && req.query.ids) || '').split(',').filter(m => B58.test(m)).slice(0, 60); if (!ids.length) return res.status(200).json({});
+      const [pj, tj] = await Promise.all([fetch('https://lite-api.jup.ag/price/v3?ids=' + ids.join(','), { signal: AbortSignal.timeout(8000) }).then(r => r.json()).catch(() => ({})),
+        fetch('https://lite-api.jup.ag/tokens/v2/search?query=' + ids.join(','), { signal: AbortSignal.timeout(8000) }).then(r => r.json()).catch(() => [])]);
+      const out = {}; ids.forEach(m => { const t = (Array.isArray(tj) ? tj : []).find(x => x.id === m) || {}; out[m] = { price: pj[m] ? +pj[m].usdPrice : null, ch: pj[m] ? pj[m].priceChange24h : null, symbol: t.symbol || null, name: t.name || null, icon: t.icon || null, verified: !!t.isVerified }; });
+      res.setHeader('cache-control', 's-maxage=30, stale-while-revalidate=120'); return res.status(200).json(out);
+    }
     if (op === 'quote') {
       if (req.method !== 'POST') return err(res, 405, 'POST only');
       const b = body(req), from = ASSET[b.from], to = ASSET[b.to || b.from];
