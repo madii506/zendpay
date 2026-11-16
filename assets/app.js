@@ -37,78 +37,6 @@ function show(m, opts = {}) { if (!MODS.includes(m)) return; const el = $('#' + 
   if (opts.focus) { const f = el.querySelector('input:not([hidden])'); f && f.focus({ preventScroll: true }); } }
 document.addEventListener('click', e => { const b = e.target.closest('[data-m]'); if (b) { e.preventDefault(); show(b.dataset.m, { focus: !!b.closest('.quick') }); } });
 
-// =================================================================== intro (no words): an envelope is drawn, sealed, sent across the world; the world folds into the seal; dive
-const intro = (() => {
-  const root = document.documentElement; if (!root.classList.contains('intro')) return { done: Promise.resolve() };
-  let finish; const done = new Promise(r => finish = r);
-  const cv = $('#introC'), x = cv.getContext('2d'); let W, H, dpr, F, cw, ch, COLS, ROWS, L = null, T0 = 0, ended = false;
-  const INK = '#151513', VIO = '#7a3cff', MAP = '#aaa4bd', MAP2 = '#bdb7cf';
-  const ENV = ['+-----------------------+', '|\\                     /|', '| \\                   / |', '|  \\                 /  |', '|   \\               /   |', '|    \\             /    |', '|     \\           /     |', '|      \\         /      |', '|       \\_______/       |', '|                       |', '+-----------------------+'];
-  const EC = 25, ER = ENV.length, ORDER = []; ENV.forEach((l, r) => l.split('').forEach((c, k) => { if (c === ' ') return; let key; if (r === 0) key = k / 24 * .25; else if (k === 24) key = .25 + r / 10 * .25; else if (r === ER - 1) key = .5 + (24 - k) / 24 * .25; else if (k === 0) key = .75 + (10 - r) / 10 * .25; else key = 1 + r / 8 * .9; ORDER.push([r, k, c, key / 1.95]); }));
-  const fit = () => { dpr = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight; cv.width = W * dpr; cv.height = H * dpr; x.setTransform(dpr, 0, 0, dpr, 0, 0); F = W < 700 ? 8 : 11; cw = F * .6; ch = F * 1.18; COLS = Math.ceil(W / cw); ROWS = Math.ceil(H / ch); };
-  fit();
-  const img = new Image(); img.src = '/assets/land.png';
-  const box = () => { const mw = Math.max(W, H * 2.4), mh = mw / 3, lon0 = W < 700 ? -50 : 0; return { mw, mh, ox: (W - mw) / 2 - lon0 / 360 * mw, oy: (H - mh) / 2 }; };
-  const P = (lon, lat) => { const b = box(); return [b.ox + (lon + 180) / 360 * b.mw, b.oy + .583 * b.mh - lat / 360 * b.mw]; };
-  const build = () => { const b = box(), c = document.createElement('canvas'); c.width = COLS; c.height = ROWS; const cx = c.getContext('2d'); cx.drawImage(img, b.ox / cw, b.oy / ch, b.mw / cw, b.mh / ch); const D = cx.getImageData(0, 0, COLS, ROWS).data; L = []; for (let r = 0; r < ROWS; r++) for (let k = 0; k < COLS; k++) if (D[(r * COLS + k) * 4] > 120) L.push([k, r, hash(k, r)]); };
-  const CITY = { ny: [-74, 40.7], sf: [-122.4, 37.8], mia: [-80.2, 25.8], mex: [-99.1, 19.4], sao: [-46.6, -23.5], lon: [-0.1, 51.5], lag: [3.4, 6.5], nai: [36.8, -1.3], dub: [55.3, 25.3], mum: [72.9, 19.1], del: [77.2, 28.6], dha: [90.4, 23.8], man: [121, 14.6], tok: [139.7, 35.7], syd: [151.2, -33.9], jnb: [28, -26.2] };
-  const ROUTES = [['ny', 'mum'], ['sf', 'man'], ['lon', 'lag'], ['mia', 'sao'], ['dub', 'dha'], ['ny', 'lon'], ['mex', 'mia'], ['lon', 'nai'], ['mum', 'syd'], ['sf', 'tok'], ['jnb', 'dub'], ['sao', 'lag'], ['del', 'man'], ['ny', 'mex'], ['tok', 'syd'], ['lag', 'mum']].map((r, i) => ({ a: r[0], b: r[1], t0: 2.9 + i * .13 + (i ? .25 : 0), dur: 1.35 + hash(i, 4) * .6, k: .16 + hash(i, 9) * .16 }));
-  const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2, eo = t => 1 - Math.pow(1 - t, 3);
-  const qp = (a, b, k, t) => { const [x1, y1] = a, [x2, y2] = b, d = Math.hypot(x2 - x1, y2 - y1), cx = (x1 + x2) / 2, cy = (y1 + y2) / 2 - d * k; return [(1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * cx + t * t * x2, (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * cy + t * t * y2]; };
-  const font = (sz, w = 800) => `${w} ${sz}px 'JetBrains Mono', monospace`;
-  function envelope(cx, cy, s, reveal, sealT) {   // s = scale (1 = full), reveal 0..1 (draw order), sealT 0..1 (stamp)
-    const Fe = Math.min(W * .62, 760) / (EC * .6) * s, ew = EC * Fe * .6, eh = ER * Fe * 1.06, ox = cx - ew / 2, oy = cy - eh / 2;
-    if (reveal >= 1) { x.fillStyle = '#fff'; x.fillRect(ox - Fe * .4, oy - Fe * .3, ew + Fe * .8, eh + Fe * .6); }
-    x.font = font(Fe); x.textBaseline = 'top';
-    for (const [r, k, c, key] of ORDER) { if (key > reveal) continue; const head = reveal < 1 && reveal - key < .03; x.fillStyle = head ? VIO : INK; x.fillText(head ? '█' : c, ox + k * Fe * .6, oy + r * Fe * 1.06); }
-    const sx = cx, sy = oy + 8.6 * Fe * 1.06;
-    if (sealT > 0) { const k = sealT < 1 ? 1 + (1 - eo(sealT)) * 1.6 : 1, R = Fe * 1.55 * k; x.globalAlpha = Math.min(1, sealT * 2); x.fillStyle = VIO; x.beginPath(); for (let q = 0; q < 26; q++) { const an = q / 26 * Math.PI * 2, rr = R * (q % 2 ? 1.06 : .97); q ? x.lineTo(sx + Math.cos(an) * rr, sy + Math.sin(an) * rr) : x.moveTo(sx + Math.cos(an) * rr, sy + Math.sin(an) * rr); } x.closePath(); x.fill();
-      x.fillStyle = '#fff'; x.font = font(R * 1.05); x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('Z', sx, sy + R * .04); x.textAlign = 'left'; x.textBaseline = 'top'; x.globalAlpha = 1; }
-    return [sx, sy];
-  }
-  function ring(cx, cy, r, alpha, glyph = ':', n = 48, sq = .62) { x.globalAlpha = Math.max(0, alpha); x.fillStyle = VIO; x.font = font(F * 1.2); for (let q = 0; q < n; q++) { const an = q / n * Math.PI * 2; x.fillText(glyph, cx + Math.cos(an) * r, cy + Math.sin(an) * r * sq); } x.globalAlpha = 1; }
-  function map(t, origin, vortex) {   // radial decode from origin; vortex pulls everything into the middle
-    if (!L) return; const [ox, oy] = origin, Rr = Math.max(0, (t - 1.85) / 1.5) * Math.hypot(W, H) * 1.1, cx = W / 2, cy = H / 2; x.font = font(F, 700);
-    for (const [k, r, h] of L) { let px = k * cw, py = r * ch; const dd = Math.hypot(px - ox, (py - oy) * 1.4) + h * 30; if (dd > Rr) continue; const fresh = Rr - dd < 50 && t < 3.6;
-      if (vortex > 0) { const dx = px - cx, dy = py - cy, d = Math.hypot(dx, dy), an = Math.atan2(dy, dx) + vortex * (2.2 - d / Math.hypot(W, H) * 1.6), rr = d * Math.pow(1 - vortex, 1.6); px = cx + Math.cos(an) * rr; py = cy + Math.sin(an) * rr; x.globalAlpha = 1 - vortex * .6; }
-      x.fillStyle = fresh ? VIO : vortex > .2 ? VIO : h > .85 ? MAP2 : MAP; x.fillText(fresh ? '#%@&*/'[(k * 7 + r + (t * 40 | 0)) % 6] : h > .86 ? '%' : '#', px, py); }
-    x.globalAlpha = 1;
-  }
-  function flights(t, vortex) {
-    for (const f of ROUTES) { const p = clamp((t - f.t0) / f.dur, 0, 1.5); if (p <= 0) continue; const a = P(...CITY[f.a]), b = P(...CITY[f.b]), head = Math.min(1, p), tail = Math.max(0, head - .5), n = 70;
-      x.globalAlpha = 1 - vortex; const F2 = F * 1.3, c2 = cw * 1.3; x.font = font(F2);
-      for (let j = Math.floor(tail * n); j <= head * n; j++) { const tt = j / n, [px, py] = qp(a, b, f.k, tt), kk = (tt - tail) / Math.max(.001, head - tail); x.fillStyle = kk > .92 && p < 1 ? INK : kk > .6 ? VIO : '#c4b4fa'; x.fillText(kk > .92 && p < 1 ? '█' : kk > .6 ? '=' : '-', px, py); }
-      if (p < 1) { const [hx, hy] = qp(a, b, f.k, head); x.fillStyle = '#fff'; x.fillRect(hx - c2 * 2, hy - 2, c2 * 4.4, ch * 1.3 + 4); x.fillStyle = INK; x.fillText('[', hx - c2 * 1.4, hy); x.fillText(']', hx + c2 * 1.4, hy); x.fillStyle = VIO; x.fillText('Z', hx, hy); }
-      else if (p < 1.5) ring(b[0], b[1] + ch / 2, 4 + (p - 1) * 70, (1 - (p - 1) / .5) * (1 - vortex), '·', 12, .7);
-      x.fillStyle = INK; x.fillText('@', a[0] - cw / 2, a[1]); x.globalAlpha = 1; }
-  }
-  function frame(now) {
-    if (ended) return; const t = (now - T0) / 1000; x.setTransform(dpr, 0, 0, dpr, 0, 0); x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
-    const ny = P(...CITY.ny), shake = t > 1.35 && t < 1.6 ? (1 - (t - 1.35) / .25) * 7 : 0; if (shake) x.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
-    // 1-2: draw and seal the envelope
-    if (t < 1.9) { envelope(W / 2, H / 2, 1, clamp(t / 1.25, 0, 1), clamp((t - 1.25) / .3, 0, 1)); const sw = clamp((t - 1.35) / .6, 0, 1); if (sw > 0 && sw < 1) { const sy = H / 2 - (ER * Math.min(W * .62, 760) / (EC * .6) * 1.06) / 2 + 8.6 * Math.min(W * .62, 760) / (EC * .6) * 1.06; ring(W / 2, sy, 40 + sw * W * .5, 1 - sw); ring(W / 2, sy, 20 + sw * W * .32, (1 - sw) * .7, '·'); } }
-    // 3: pull back; the envelope flies to New York while the world decodes around it
-    else if (t < 3.2) { const k = ease(clamp((t - 1.9) / 1.1, 0, 1)), cx = W / 2 + (ny[0] - W / 2) * k, cy = H / 2 + (ny[1] - H / 2) * k; map(t, [cx, cy], 0); envelope(cx, cy, 1 - k * .93, 1, 1); }
-    // 4: zends cross every border
-    else if (t < 5.7) { map(t, ny, 0); flights(t, 0); }
-    // 5: the world folds into the seal
-    else if (t < 6.7) { const v = ease(clamp((t - 5.7) / 1, 0, 1)); map(t, ny, v); flights(t, v); const R = v * Math.min(W, H) * .16; if (R > 1) { x.fillStyle = VIO; x.beginPath(); x.arc(W / 2, H / 2, R, 0, 7); x.fill(); x.fillStyle = '#fff'; x.font = font(R * 1.05); x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('Z', W / 2, H / 2 + R * .04); x.textAlign = 'left'; x.textBaseline = 'top'; } }
-    // 6: dive through the seal into the terminal
-    else { const z = clamp((t - 6.7) / .9, 0, 1), R = Math.min(W, H) * .16 + Math.pow(z, 2.2) * Math.hypot(W, H); x.fillStyle = VIO; x.beginPath(); x.arc(W / 2, H / 2, R, 0, 7); x.fill();
-      x.globalAlpha = 1 - z; x.fillStyle = '#fff'; x.font = font(Math.min(W, H) * .17 * (1 + z * 6)); x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('Z', W / 2, H / 2); x.textAlign = 'left'; x.textBaseline = 'top'; x.globalAlpha = clamp((z - .5) / .5, 0, 1); x.fillStyle = '#0d0c12'; x.fillRect(0, 0, W, H); x.globalAlpha = 1;
-      if (z >= 1) return end(); }
-    requestAnimationFrame(frame);
-  }
-  function end() { if (ended) return; ended = true; try { sessionStorage.setItem('zend:intro', '1'); } catch (e) {} const v = $('#introV'); v.style.transition = 'opacity .35s'; v.style.opacity = '0'; setTimeout(() => { root.classList.remove('intro'); v.remove(); }, 360); finish(); }
-  $('#skip').onclick = end; $('#introV').addEventListener('pointerdown', e => { if (e.target.id !== 'skip') end(); });
-  addEventListener('keydown', e => { if (!ended && (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ')) end(); });
-  addEventListener('resize', () => { if (!ended) { fit(); if (img.naturalWidth) build(); } });
-  const go = () => { if (img.naturalWidth) build(); T0 = performance.now(); requestAnimationFrame(frame); };
-  (img.complete ? Promise.resolve() : img.decode().catch(() => {})).then(() => document.fonts && document.fonts.ready).then(go, go);
-  setTimeout(end, 11000);   // backstop
-  return { done };
-})();
-
 // =================================================================== wallets
 const WAL = { prov: null, id: null, pk: null };
 const WALLETS = [
@@ -758,5 +686,5 @@ const side = (() => {
 
 hist.render(); contacts.render(); hist.poll(); setInterval(() => hist.poll(), 20000); silent(); setInterval(() => live.load(), 30000);
 { const m = (location.hash.match(/^#([a-z]+)$/) || [])[1]; if (m && MODS.includes(m)) show(m, { keepHash: true }); else dockSet(!$('#log').children.length); }
-intro.done.then(() => { wordmark.run(); cli.boot(); });
+wordmark.run(); cli.boot();
 })();
