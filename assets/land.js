@@ -111,12 +111,12 @@ function globeTex(W) {
   c.strokeStyle = 'rgba(139,92,255,.22)'; c.lineWidth = Math.max(1, W / 2048); for (let lon = -180; lon <= 180; lon += 30) { const x = (lon + 180) / 360 * W; c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); } for (let lat = -60; lat <= 60; lat += 30) { const y = (90 - lat) / 180 * H; c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
   return tex(cv);
 }
-const CITY = { ny: [40.7, -74], sf: [37.8, -122.4], mia: [25.8, -80.2], mex: [19.4, -99.1], sao: [-23.5, -46.6], lon: [51.5, -.1], ber: [52.5, 13.4], lag: [6.5, 3.4], nai: [-1.3, 36.8], dub: [25.2, 55.3], mum: [19.1, 72.9], sin: [1.35, 103.8], man: [14.6, 121], tok: [35.7, 139.7], syd: [-33.9, 151.2], tor: [43.7, -79.4] };
-const ROUTES = [['ny', 'lon'], ['ny', 'lag'], ['mia', 'sao'], ['sf', 'tok'], ['lon', 'nai'], ['ber', 'dub'], ['dub', 'mum'], ['mum', 'sin'], ['sin', 'man'], ['tok', 'syd'], ['mex', 'mia'], ['tor', 'ber'], ['sao', 'lag'], ['sf', 'mex'], ['lon', 'mum'], ['man', 'syd']];
+const CITY = { ny: [40.7, -74], sf: [37.8, -122.4], la: [34.1, -118.2], mia: [25.8, -80.2], mex: [19.4, -99.1], bog: [4.7, -74.1], lim: [-12.0, -77.0], sao: [-23.5, -46.6], bue: [-34.6, -58.4], tor: [43.7, -79.4], lon: [51.5, -.1], par: [48.9, 2.35], mad: [40.4, -3.7], ber: [52.5, 13.4], sto: [59.3, 18.1], ist: [41.0, 29.0], cai: [30.0, 31.2], lag: [6.5, 3.4], nai: [-1.3, 36.8], jnb: [-26.2, 28.0], dub: [25.2, 55.3], mum: [19.1, 72.9], del: [28.6, 77.2], bkk: [13.8, 100.5], sin: [1.35, 103.8], jkt: [-6.2, 106.8], man: [14.6, 121], hk: [22.3, 114.2], sha: [31.2, 121.5], seo: [37.6, 127.0], tok: [35.7, 139.7], syd: [-33.9, 151.2], mel: [-37.8, 145.0] };
+const CKEYS = () => Object.keys(CITY), GR = 16;
 const ll = (lat, lon, r) => { const phi = (lon + 180) / 360 * Math.PI * 2, th = (90 - lat) / 180 * Math.PI; return new THREE.Vector3(-r * Math.cos(phi) * Math.sin(th), r * Math.cos(th), r * Math.sin(phi) * Math.sin(th)); };
 
 // ---------------------------------------------------------------- scene
-let R, scene, cam, hero, orbs = [], globe, gGroup, stars, routes = [], T0 = 0, state = 'idle', D0 = 0, raf = 0, ptr = { x: 0, y: 0, sx: 0, sy: 0 }, fitInfo = {};
+let hopFn, gU, rimU, dots = {}, landAt = 0, hov = 0, hovT = 0, flipX = 0, flipFrom = 0, flipAt = -9, sealAt = -9, wasBack = false, ray = null, R, scene, cam, hero, orbs = [], globe, gGroup, stars, routes = [], T0 = 0, state = 'idle', D0 = 0, raf = 0, ptr = { x: 0, y: 0, sx: 0, sy: 0 }, fitInfo = {};
 const ui = () => root.querySelector('.lui'), flash = () => root.querySelector('.flash');
 const ease = { out: t => 1 - Math.pow(1 - t, 3), inOut: t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2, back: t => { const c1 = 1.4, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); } };
 const cl = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
@@ -136,33 +136,51 @@ async function boot() {
   const rim = new THREE.DirectionalLight(0x9b74ff, 2.2); rim.position.set(5, 2, -6); scene.add(rim);
   scene.add(new THREE.AmbientLight(0x6c5aa8, .35));
   try { await document.fonts.load("700 40px 'JetBrains Mono'"); await document.fonts.load("800 40px 'JetBrains Mono'"); } catch (e) {}
-  // globe
-  const img = new Image(); img.src = '/assets/land.png'; try { await img.decode(); globeTex.mask = img; } catch (e) {}
+  // globe: a dark sphere and a rim that draws itself; the ascii land is built after the first frames and decodes in
   gGroup = new THREE.Group(); scene.add(gGroup);
-  const GR = 16, gmap = globeTex.mask ? globeTex(PHONE ? 2048 : 4096) : null;
-  // the land fades toward the limb so the edge reads as one clean ring, not packed glyphs
-  const gmat = gmap ? new THREE.ShaderMaterial({ uniforms: { map: { value: gmap } },
+  gU = { map: { value: null }, rev: { value: 0 }, fade: { value: 0 } };
+  const gmat = new THREE.ShaderMaterial({ uniforms: gU, transparent: true,
     vertexShader: 'varying vec2 vUv; varying vec3 n; varying vec3 v; void main(){ vUv = uv; vec4 mv = modelViewMatrix * vec4(position, 1.); n = normalize(normalMatrix * normal); v = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
-    fragmentShader: 'uniform sampler2D map; varying vec2 vUv; varying vec3 n; varying vec3 v; void main(){ vec3 c = texture2D(map, vUv).rgb * vec3(.82, .8, .92); float f = dot(normalize(n), normalize(v)); c *= smoothstep(.12, .62, f); gl_FragColor = vec4(c, 1.);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}' }) : new THREE.MeshBasicMaterial({ color: 0x0d0b16 });
+    fragmentShader: 'uniform sampler2D map; uniform float rev; uniform float fade; varying vec2 vUv; varying vec3 n; varying vec3 v; float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); } void main(){ vec3 base = vec3(.0040, .0034, .0080); vec3 c = texture2D(map, vUv).rgb * vec3(.82, .8, .92); vec2 cell = floor(vUv * vec2(360., 150.)); float k = h(cell); float on = step(k, rev); float fresh = on * (1. - smoothstep(0., .07, rev - k)); c = c * on + vec3(.75, .68, 1.) * fresh * step(.05, c.r + c.g + c.b); float f = dot(normalize(n), normalize(v)); c *= smoothstep(.12, .62, f); gl_FragColor = vec4(max(c, base * fade), fade);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}' });
   globe = new THREE.Mesh(new THREE.SphereGeometry(GR, 96, 64), gmat); gGroup.add(globe);
-  const rimM = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { c: { value: new THREE.Color('#b49bff') } },
+  rimU = { c: { value: new THREE.Color('#b49bff') }, k: { value: 0 } };
+  const rimM = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: rimU,
     vertexShader: 'varying vec3 n; varying vec3 v; void main(){ vec4 mv = modelViewMatrix * vec4(position,1.); n = normalize(normalMatrix * normal); v = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
-    fragmentShader: 'uniform vec3 c; varying vec3 n; varying vec3 v; void main(){ float f = 1. - abs(dot(n, v)); float a = smoothstep(.86, .985, f) * .9; gl_FragColor = vec4(c * a, a); }' });
+    fragmentShader: 'uniform vec3 c; uniform float k; varying vec3 n; varying vec3 v; void main(){ float f = 1. - abs(dot(n, v)); float ang = fract(atan(n.x, n.y) / 6.28318 + 1.); float a = smoothstep(.86, .985, f) * .9 * step(ang, k); gl_FragColor = vec4(c * a, a); }' });
   gGroup.add(new THREE.Mesh(new THREE.SphereGeometry(GR * 1.004, 96, 64), rimM));
-  const dotM = new THREE.MeshBasicMaterial({ color: 0xffffff });
-  for (const k in CITY) { const d = new THREE.Mesh(new THREE.SphereGeometry(.07, 10, 8), dotM); d.position.copy(ll(CITY[k][0], CITY[k][1], GR * 1.003)); globe.add(d); }
-  const envT = (() => { const c = document.createElement('canvas'); c.width = 128; c.height = 88; const x = c.getContext('2d'); x.fillStyle = '#f4f1fb'; x.fillRect(4, 4, 120, 80); x.strokeStyle = '#8b5cff'; x.lineWidth = 8; x.beginPath(); x.moveTo(8, 10); x.lineTo(64, 50); x.lineTo(120, 10); x.stroke(); x.fillStyle = '#8b5cff'; x.beginPath(); x.arc(64, 50, 13, 0, 7); x.fill(); return tex(c); })();
-  ROUTES.forEach(([a, b], i) => { const A = ll(...CITY[a], 1).normalize(), B = ll(...CITY[b], 1).normalize(), ang = A.angleTo(B), pts = [];
-    for (let j = 0; j <= 64; j++) { const t = j / 64, p = new THREE.Vector3().copy(A).multiplyScalar(Math.sin((1 - t) * ang) / Math.sin(ang)).add(new THREE.Vector3().copy(B).multiplyScalar(Math.sin(t * ang) / Math.sin(ang))); pts.push(p.normalize().multiplyScalar(GR * (1.004 + .12 * ang * Math.sin(Math.PI * t)))); }
-    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x8b5cff, transparent: true, opacity: .75 })); globe.add(line);
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: envT, transparent: true, depthWrite: false })); sp.scale.set(.46, .32, 1); globe.add(sp);
-    routes.push({ pts, sp, sp0: (i * .37) % 1, dur: 4.5 + (i % 5) * .7 }); });
+  const dotM = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+  for (const k in CITY) { const d = new THREE.Mesh(new THREE.SphereGeometry(.07, 10, 8), dotM); d.position.copy(ll(CITY[k][0], CITY[k][1], GR * 1.003)); globe.add(d); dots[k] = d; }
+  const envT = (() => { const c = document.createElement('canvas'); c.width = 96; c.height = 66; const x = c.getContext('2d'); x.fillStyle = '#ffffff'; x.fillRect(3, 3, 90, 60); x.strokeStyle = '#7646ff'; x.lineWidth = 6; x.lineJoin = 'round'; x.beginPath(); x.moveTo(6, 7); x.lineTo(48, 38); x.lineTo(90, 7); x.stroke(); x.fillStyle = '#7646ff'; x.beginPath(); x.arc(48, 38, 9, 0, 7); x.fill(); const t = tex(c); t.anisotropy = 1; return t; })();
+  const lineV = 'attribute float p; varying float vp; void main(){ vp = p; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }';
+  const lineF = 'uniform float head; uniform float tail; uniform float on; uniform vec3 c; varying float vp; void main(){ if (vp > head || vp < tail) discard; float a = smoothstep(tail, head, vp) * on; gl_FragColor = vec4(c, a); }';
+  const ringM = () => new THREE.MeshBasicMaterial({ color: 0xc9b8ff, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+  // couriers: envelopes that hop from city to city across the globe, a trail behind each jump, a ring where it lands
+  const NC = PHONE ? 8 : 12, keys = CKEYS();
+  for (let i = 0; i < NC; i++) {
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(65 * 3), 3)); geo.setAttribute('p', new THREE.BufferAttribute(new Float32Array([...Array(65)].map((_, j) => j / 64)), 1));
+    const u = { head: { value: 0 }, tail: { value: 0 }, on: { value: 0 }, c: { value: new THREE.Color(i % 3 ? '#a68bff' : '#e2d8ff') } };
+    const line = new THREE.Line(geo, new THREE.ShaderMaterial({ uniforms: u, vertexShader: lineV, fragmentShader: lineF, transparent: true, depthWrite: false, toneMapped: false })); line.frustumCulled = false; globe.add(line);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: envT, transparent: true, depthWrite: false, toneMapped: false, opacity: 0 })); sp.scale.set(1.15, .79, 1); globe.add(sp);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(.8, 1, 40), ringM()); globe.add(ring);
+    routes.push({ geo, u, sp, ring, at: keys[(i * 7) % keys.length], t0: 2.0 + i * .28, phase: 'wait' });
+  }
+  const hop = (r, now) => { // pick a next city a hop away and lay the arc
+    const A = ll(...CITY[r.at], 1).normalize(); let to, ang, n = 0;
+    // prefer cities on the side of the globe facing you, so the hops stay in view
+    const gw = new THREE.Vector3(); globe.getWorldPosition(gw); const toCam = cam.position.clone().sub(gw).normalize();
+    const facing = k => { const w = globe.localToWorld(ll(...CITY[k], GR)).sub(gw).normalize(); return w.dot(toCam); };
+    do { to = keys[Math.random() * keys.length | 0]; ang = A.angleTo(ll(...CITY[to], 1).normalize()); } while ((to === r.at || ang < .22 || ang > 1.1 || (n < 30 && facing(to) < .25)) && ++n < 60);
+    const B = ll(...CITY[to], 1).normalize(), pos = r.geo.attributes.position, lift = .05 + .2 * ang;
+    for (let j = 0; j <= 64; j++) { const t = j / 64, p = A.clone().multiplyScalar(Math.sin((1 - t) * ang) / Math.sin(ang)).add(B.clone().multiplyScalar(Math.sin(t * ang) / Math.sin(ang))).normalize().multiplyScalar(GR * (1.004 + lift * Math.sin(Math.PI * t))); pos.setXYZ(j, p.x, p.y, p.z); }
+    pos.needsUpdate = true; r.to = to; r.dur = .9 + ang * .9 + Math.random() * .3; r.start = now; r.phase = 'fly'; };
+  hopFn = hop;
+  setTimeout(() => { const img = new Image(); img.src = '/assets/land.png'; img.decode().then(() => { globeTex.mask = img; gU.map.value = globeTex(PHONE ? 2048 : 4096); landAt = performance.now(); }).catch(() => {}); }, 60);
   // stars
   const N = PHONE ? 500 : 1100, pos = new Float32Array(N * 3), ph = new Float32Array(N);
   for (let i = 0; i < N; i++) { pos[i * 3] = (Math.random() - .5) * 120; pos[i * 3 + 1] = Math.random() * 50 - 8; pos[i * 3 + 2] = -30 - Math.random() * 40; ph[i] = Math.random() * 6.28; }
   const sgeo = new THREE.BufferGeometry(); sgeo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); sgeo.setAttribute('ph', new THREE.BufferAttribute(ph, 1));
-  stars = new THREE.Points(sgeo, new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { t: { value: 0 }, px: { value: R.getPixelRatio() } },
-    vertexShader: 'attribute float ph; uniform float t; uniform float px; varying float a; void main(){ a = .35 + .65 * (.5 + .5 * sin(t * 1.3 + ph * 7.)); gl_PointSize = (1. + step(.92, fract(ph * 13.)) * 1.2) * px * 1.4; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
+  stars = new THREE.Points(sgeo, new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { t: { value: 0 }, px: { value: R.getPixelRatio() }, al: { value: 0 } },
+    vertexShader: 'attribute float ph; uniform float t; uniform float px; uniform float al; varying float a; void main(){ a = (.35 + .65 * (.5 + .5 * sin(t * 1.3 + ph * 7.))) * al; gl_PointSize = (1. + step(.92, fract(ph * 13.)) * 1.2) * px * 1.4; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
     fragmentShader: 'varying float a; void main(){ vec2 d = gl_PointCoord - .5; if (dot(d, d) > .25) discard; gl_FragColor = vec4(.86, .82, 1., a); }' }));
   scene.add(stars);
   // envelopes
@@ -173,47 +191,77 @@ async function boot() {
   root.querySelector('#lConnect').onclick = () => { const a = api(); if (a.pk && a.pk()) return enter(); a.connect && a.connect(); };
   const paintW = () => { const a = api(), pk = a.pk && a.pk(), b = root.querySelector('#lConnect'); b.classList.toggle('on', !!pk); b.querySelector('span').textContent = pk ? (a.short ? a.short(pk) : pk.slice(0, 4) + '…' + pk.slice(-4)) : 'connect wallet'; };
   api().onWallet && api().onWallet(paintW); paintW();
-  addEventListener('resize', fit); addEventListener('pointermove', e => { ptr.x = e.clientX / innerWidth * 2 - 1; ptr.y = e.clientY / innerHeight * 2 - 1; });
+  ray = new THREE.Raycaster();
+  addEventListener('resize', fit); addEventListener('pointermove', e => { ptr.x = e.clientX / innerWidth * 2 - 1; ptr.y = e.clientY / innerHeight * 2 - 1; ptr.in = true; });
+  root.querySelector('canvas').addEventListener('click', e => { if (state === 'dive') return; ray.setFromCamera({ x: e.clientX / innerWidth * 2 - 1, y: -(e.clientY / innerHeight * 2 - 1) }, cam); if (ray.intersectObject(hero, true).length) { flipFrom = flipFrom + (flipX - flipFrom) * ease.inOut(cl((performance.now() - flipAt) / 900)); flipX += Math.PI; flipAt = performance.now(); } });
   addEventListener('keydown', e => { if (html.classList.contains('landing') && state !== 'dive' && e.key === 'Enter' && !/INPUT|TEXTAREA|BUTTON/.test(document.activeElement.tagName) && !document.querySelector('.sheet[style*="grid"], .sheet.on')) enter(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && html.classList.contains('landing')) loop(); });
   start();
 }
 function bail() { html.classList.remove('landing'); root.remove(); window.zendLand = null; }
-function start() { ui().style.visibility = ''; state = 'intro'; T0 = performance.now(); cam.fov = 32; fit(); root.classList.remove('ready'); setTimeout(() => root.classList.add('ready'), RM ? 0 : 900); cancelAnimationFrame(raf); loop(); }
+function start() { ui().style.visibility = ''; state = 'intro'; T0 = performance.now(); cam.fov = 32; fit(); root.classList.remove('ready'); setTimeout(() => root.classList.add('ready'), RM ? 0 : 2100); cancelAnimationFrame(raf); loop(); }
 function fit() { if (!R) return; const w = innerWidth, h = innerHeight; R.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix();
   const D = 10, visH = 2 * D * Math.tan(THREE.MathUtils.degToRad(16)), visW = visH * cam.aspect, port = cam.aspect < 1;
   const hw = Math.min(visW * (port ? .64 : .29), visH * .36 * 1.5455), s = hw / 3.4;
   fitInfo = { s, port, visW, visH, hy: port ? .25 : .62, rx: port ? visW * .5 : Math.min(visW * .27, 4.2), gz: -14 };
-  { const half = (10 - fitInfo.gz) * Math.tan(THREE.MathUtils.degToRad(16)); fitInfo.gr = port ? Math.min(half * cam.aspect * .95, half * .55) : Math.min(half * .68, half * cam.aspect * .42); fitInfo.gy = port ? fitInfo.hy * .9 : fitInfo.hy * .55 - .1; }
+  { const half = (10 - fitInfo.gz) * Math.tan(THREE.MathUtils.degToRad(16)); fitInfo.gr = port ? Math.min(half * cam.aspect * 1.0, half * .62) : Math.min(half * .8, half * cam.aspect * .5); fitInfo.gy = port ? fitInfo.hy * .9 : fitInfo.hy * .55 - .1; }
   gGroup.position.set(0, fitInfo.gy, fitInfo.gz); gGroup.scale.setScalar(fitInfo.gr / 16);
   // put the buttons just under the hero envelope
   cam.position.set(0, .25, 10); cam.lookAt(0, .1, 0); cam.updateMatrixWorld();
   const bottom = new THREE.Vector3(0, fitInfo.hy - 1.1 * s, 0).project(cam), y = (1 - bottom.y) / 2 * h; ui().style.top = Math.round(y + (port ? 34 : 44)) + 'px'; }
 function loop() { cancelAnimationFrame(raf); const f = now => { if (!html.classList.contains('landing') || document.hidden) return; raf = requestAnimationFrame(f); frame(now); }; raf = requestAnimationFrame(f); }
 function frame(now) {
-  const t = (now - T0) / 1000, tt = RM ? 0 : now / 1000, { s, hy, rx, port } = fitInfo;
+  const t = RM ? 9 : (now - T0) / 1000, tt = RM ? 0 : now / 1000, { s, hy, rx, port } = fitInfo;
   ptr.sx += (ptr.x - ptr.sx) * .06; ptr.sy += (ptr.y - ptr.sy) * .06;
-  stars.material.uniforms.t.value = tt; gGroup.rotation.set(.2, tt * .06 + 1.1, .1);
-  routes.forEach(r => { const k = ((tt / r.dur + r.sp0) % 1), j = k * 64, a = Math.floor(j), p = r.pts[a].clone().lerp(r.pts[Math.min(64, a + 1)], j - a); r.sp.position.copy(p); r.sp.material.opacity = Math.sin(Math.PI * k); });
+  // the opening: stars, the globe's ring draws, the land decodes, the envelope drops, the others fan out
+  stars.material.uniforms.t.value = tt; stars.material.uniforms.al.value = ease.out(cl(t / .8));
+  const gIn = ease.out(cl((t - .15) / 1.1)); rimU.k.value = ease.inOut(cl((t - .1) / 1.2)); gU.fade.value = gIn; gGroup.scale.setScalar(fitInfo.gr / 16 * (.9 + .1 * gIn));
+  gU.rev.value = landAt ? (RM ? 1 : ease.inOut(cl((now - Math.max(landAt, T0 + 600)) / 1600))) : 0;
+  gGroup.rotation.set(.2, tt * .06 + 1.1 - (1 - gIn) * .6, .1);
+  // live traffic: each route draws itself with a trail, an envelope rides the head, the city it reaches blinks
+  routes.forEach(r => { const sec = now / 1000;
+    if (RM) { r.u.on.value = 0; r.sp.material.opacity = 0; return; }
+    if (r.phase === 'wait') { if ((now - T0) / 1000 < r.t0) return; hopFn(r, sec); }
+    const ph = sec - r.start;
+    if (r.phase === 'fly') { const k = cl(ph / r.dur), m = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2, j = m * 64, a = Math.floor(j), pos = r.geo.attributes.position;
+      r.sp.position.set(pos.getX(a), pos.getY(a), pos.getZ(a)).lerp(new THREE.Vector3(pos.getX(Math.min(64, a + 1)), pos.getY(Math.min(64, a + 1)), pos.getZ(Math.min(64, a + 1))), j - a);
+      r.u.head.value = m; r.u.tail.value = Math.max(0, m - .42); r.u.on.value = 1; r.sp.material.opacity = cl(ph / .15);
+      if (k >= 1) { r.phase = 'land'; r.start = sec; r.at = r.to; dots[r.to].userData.at = now; const c = ll(...CITY[r.to], GR * 1.006); r.ring.position.copy(c); r.ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), c.clone().normalize()); } }
+    else if (r.phase === 'land') { const k = cl(ph / .7); r.u.head.value = 1; r.u.tail.value = .58 + .42 * ease.out(k); r.sp.material.opacity = 1 - ease.out(cl(ph / .35));
+      r.ring.material.opacity = (1 - k) * .9; r.ring.scale.setScalar(.15 + 1.1 * ease.out(k));
+      if (k >= 1) { r.ring.material.opacity = 0; r.u.on.value = 0; r.phase = 'rest'; r.start = sec; r.rest = .1 + Math.random() * .7; } }
+    else if (r.phase === 'rest' && ph > r.rest) hopFn(r, sec); });
+  for (const k in dots) { const d = dots[k], age = d.userData.at ? (now - d.userData.at) / 1000 : 9; d.scale.setScalar(1 + 2.2 * Math.exp(-age * 5)); }
+  // hover: the envelope lifts toward you; a click flips it
+  if (ray && ptr.in && state !== 'dive') { ray.setFromCamera({ x: ptr.x, y: -ptr.y }, cam); hovT = ray.intersectObject(hero, true).length ? 1 : 0; } else hovT = 0;
+  hov += (hovT - hov) * .12; root.classList.toggle('hov', hov > .5);
+  const fl = flipFrom + (flipX - flipFrom) * ease.inOut(cl((now - flipAt) / 900));
   // hero: drop in, float, a slow flip that shows the seal now and then
-  const di = RM ? 1 : cl((t - .1) / 1.15), e = ease.back(di);
-  let flip = 0; if (!RM && state !== 'dive') { const ph = (t - 4) % 12; if (t > 4) flip = ph < 6 ? 0 : ph < 7.4 ? ease.inOut((ph - 6) / 1.4) * Math.PI : ph < 10.4 ? Math.PI : Math.PI + ease.inOut(cl((ph - 10.4) / 1.4)) * Math.PI; }
-  hero.scale.setScalar(s); hero.position.set(0, hy + (1 - e) * 6 + Math.sin(tt * 1.1) * .06 * s, 0);
-  if (state !== 'dive') hero.rotation.set(-.9 * (1 - e) + ptr.sy * .12 + .05, flip + ptr.sx * .32 + Math.sin(tt * .5) * .1, Math.sin(tt * .7) * .025 - (1 - e) * .3);
-  orbs.forEach((o, i) => { const ap = RM ? 1 : ease.out(cl((t - .55 - i * .12) / .9)), th = tt * .2 + i * Math.PI / 2, out = state === 'dive' ? 1 + ease.inOut(cl((now - D0) / 900)) * 3 : 1;
-    o.scale.setScalar(s * (port ? .5 : .5) * ap); if (port) o.position.set(Math.cos(th) * rx * out, hy + s * (.75 + Math.sin(th) * 1.3) * out, -2.4 - Math.abs(Math.sin(th * .5 + i)) * .6); else o.position.set(Math.cos(th) * rx * out, hy + Math.sin(th * 2 + i) * .3 * s + (i % 2 ? .55 : -.4) * s, -2.7 + Math.sin(th) * 1.05);
+  const di = RM ? 1 : cl((t - .9) / 1.15), e = ease.back(di);
+  let flip = 0; if (!RM && state !== 'dive') { const ph = (t - 5) % 12; if (t > 5) flip = ph < 6 ? 0 : ph < 7.4 ? ease.inOut((ph - 6) / 1.4) * Math.PI : ph < 10.4 ? Math.PI : Math.PI + ease.inOut(cl((ph - 10.4) / 1.4)) * Math.PI; }
+  hero.scale.setScalar(s * (1 + hov * .035)); hero.position.set(0, hy + (1 - e) * 9 + Math.sin(tt * 1.1) * .06 * s, hov * .35);
+  if (state !== 'dive') hero.rotation.set(-.9 * (1 - e) + ptr.sy * (.12 + hov * .16) + .05, flip + fl + ptr.sx * (.32 + hov * .2) + Math.sin(tt * .5) * .1, Math.sin(tt * .7) * .025 - (1 - e) * .3);
+  // the seal stamps down each time the back turns to you
+  const back = Math.cos(hero.rotation.y) < -.2; if (back && !wasBack) sealAt = now; wasBack = back;
+  const sa = (now - sealAt) / 1000, se = hero.userData.seal; se.scale.setScalar(sa < .5 ? 1 + .3 * (1 - ease.out(cl(sa / .5))) : 1);
+  orbs.forEach((o, i) => { const ap = RM ? 1 : ease.out(cl((t - 1.55 - i * .12) / .9)), th = tt * .2 + i * Math.PI / 2, out = state === 'dive' ? 1 + ease.inOut(cl((now - D0) / 900)) * 3 : 1;
+    o.scale.setScalar(s * .5 * (.6 + .4 * ap)); o.visible = ap > .01;
+    const px = Math.cos(th) * rx * out, py = port ? hy + s * (.75 + Math.sin(th) * 1.3) * out : hy + Math.sin(th * 2 + i) * .3 * s + (i % 2 ? .55 : -.4) * s, pz = port ? -2.4 - Math.abs(Math.sin(th * .5 + i)) * .6 : -2.7 + Math.sin(th) * 1.05;
+    o.position.set(px * ap, hy + (py - hy) * ap, -1.2 + (pz + 1.2) * ap);
     o.rotation.set(.12 + Math.sin(tt * .6 + i) * .1, -Math.cos(th) * .7 + Math.sin(tt * .3 + i) * .2, Math.sin(tt * .4 + i * 2) * .12); });
-  // camera: slight parallax, or the dive through the seal
+  // camera: a short push in at the start, slight parallax, or the dive through the seal
   if (state === 'dive') { const d = (now - D0) / 1000, a = ease.inOut(cl(d / .5)), b = ease.inOut(cl((d - .35) / .95));
     hero.rotation.set(D0r.x * (1 - a), D0r.y + (D0t - D0r.y) * a, D0r.z * (1 - a));
     const sw = new THREE.Vector3(); hero.userData.seal.getWorldPosition(sw); cam.position.set(sw.x * b, .25 + (sw.y - .25) * b, 10 - (10 - (sw.z - .25)) * b); cam.fov = 32 - 14 * b; cam.updateProjectionMatrix(); cam.lookAt(0 + sw.x * b, .1 + (sw.y - .1) * b, sw.z - 1);
     if (d > .95 && !root.classList.contains('out')) { flash().classList.add('go'); root.classList.add('out'); setTimeout(done, 520); } }
-  else { cam.position.set(ptr.sx * .35, .25 - ptr.sy * .18, 10); cam.lookAt(0, .1, 0); }
+  else { const push = RM ? 0 : 1 - ease.out(cl(t / 2.4)); cam.position.set(ptr.sx * .35, .25 - ptr.sy * .18 + push * .6, 10 + push * 3.2); cam.lookAt(0, .1, 0); }
   R.render(scene, cam);
 }
 let D0r = { x: 0, y: 0, z: 0 }, D0t = Math.PI;
+const appEl = () => document.getElementById('app');
 function enter() { if (state === 'dive') return; if (!R || RM) { root.classList.add('out'); setTimeout(done, 380); return; }
-  state = 'dive'; D0 = performance.now(); root.classList.add('diving'); ui().style.visibility = 'hidden'; D0r = { x: hero.rotation.x, y: hero.rotation.y, z: hero.rotation.z }; D0t = Math.PI + 2 * Math.PI * Math.round((D0r.y - Math.PI) / (2 * Math.PI)); }
-function done() { html.classList.remove('landing'); root.classList.remove('out', 'diving', 'ready'); flash().classList.remove('go'); state = 'idle'; cancelAnimationFrame(raf); cam.position.set(0, .25, 10); cam.fov = 32; cam.updateProjectionMatrix(); dispatchEvent(new Event('zend:entered')); }
+  state = 'dive'; D0 = performance.now(); root.classList.add('diving'); appEl() && appEl().classList.add('pre'); ui().style.visibility = 'hidden'; D0r = { x: hero.rotation.x, y: hero.rotation.y, z: hero.rotation.z }; D0t = Math.PI + 2 * Math.PI * Math.round((D0r.y - Math.PI) / (2 * Math.PI)); }
+function done() { html.classList.remove('landing'); root.classList.remove('out', 'diving', 'ready'); flash().classList.remove('go'); state = 'idle'; cancelAnimationFrame(raf); cam.position.set(0, .25, 10); cam.fov = 32; cam.updateProjectionMatrix(); dispatchEvent(new Event('zend:entered'));
+  const ap = appEl(); if (ap && ap.classList.contains('pre')) requestAnimationFrame(() => { ap.classList.add('zin'); ap.classList.remove('pre'); setTimeout(() => ap.classList.remove('zin'), 1300); }); }
 
 if (html.classList.contains('landing')) boot();
