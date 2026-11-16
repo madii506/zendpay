@@ -256,6 +256,7 @@ body{overflow:hidden}
   .rail{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:6px 8px;gap:4px}
   .rail button{flex:none;min-height:40px;padding:0 12px}.rail button i{display:none}
   .tick span:nth-child(n+3):not(:last-child){display:none}
+  .tick span:nth-child(2){display:none}
   .dock{height:26vh;min-height:130px}
   .mod{padding:16px 14px 24px}
 }
@@ -291,6 +292,12 @@ html.landing body{overflow:hidden}
 .land .flash{position:absolute;inset:0;background:#8b5cff;opacity:0;pointer-events:none}
 .land .flash.go{animation:lflash .55s ease forwards}
 @keyframes lflash{0%{opacity:0}35%{opacity:1}100%{opacity:1}}
+.dock.min .dhead{display:none}
+/* entering from the landing: the panels slide in one after another */
+.app.pre .top,.app.pre .rail,.app.pre .main,.app.pre .dock,.app.pre .side{opacity:0;transform:translateY(14px)}
+.app.zin .top,.app.zin .rail,.app.zin .main,.app.zin .dock,.app.zin .side{transition:opacity .5s ease,transform .7s cubic-bezier(.2,.8,.2,1)}
+.app.zin .rail{transition-delay:.06s}.app.zin .main{transition-delay:.14s}.app.zin .dock{transition-delay:.24s}.app.zin .side{transition-delay:.3s}
+.land{cursor:default}.land.hov{cursor:pointer}
 @media(max-width:520px){.lb{font-size:11.5px;padding:0 15px;min-height:46px;gap:8px;letter-spacing:.07em}.lb .ar{font-size:14px}.lb .dot{width:8px;height:8px}.land .lui{gap:10px}}
 @media(max-width:360px){.lb{padding:0 12px;letter-spacing:.04em}}
 
