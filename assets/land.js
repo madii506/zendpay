@@ -103,10 +103,10 @@ function globeTex(W) {
   const land = (lon, lat) => { const x = Math.floor((lon + 180) / 360 * 600), y = Math.floor(116.6 - lat * 1.6667); if (x < 0 || x >= 600 || y < 0 || y >= 200) return 0; return M[(y * 600 + x) * 4] / 255; };
   const COLS = 360, ROWS = 150, cw = W / COLS, ch = H / ROWS; c.font = `700 ${ch * .95}px 'JetBrains Mono', monospace`; c.textBaseline = 'top'; c.textAlign = 'center';
   const hsh = (a, b) => { let h = (a * 374761393 + b * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
-  for (let r = 0; r < ROWS; r++) { const lat = 90 - (r + .5) / ROWS * 180;
-    for (let k = 0; k < COLS; k++) { const lon = -180 + (k + .5) / COLS * 360, l = land(lon, lat), h = hsh(k, r);
+  for (let r = 0; r < ROWS; r++) { const lat = 90 - (r + .5) / ROWS * 180, step = Math.max(1, Math.round(1 / Math.max(.08, Math.cos(lat * Math.PI / 180))));
+    for (let k = 0; k < COLS; k += step) { const lon = -180 + (k + .5) / COLS * 360, l = land(lon, lat), h = hsh(k, r);
       if (l > .4) { const edge = land(lon - 1, lat) < .4 || land(lon + 1, lat) < .4 || land(lon, lat - 1.2) < .4 || land(lon, lat + 1.2) < .4; c.fillStyle = edge ? '#efeaff' : h > .7 ? '#c9bcff' : '#a594e8'; c.fillText(edge ? '+' : h > .86 ? '%' : '#', k * cw + cw / 2, r * ch); }
-      else if (k % 3 === 0 && r % 2 === 0) { c.fillStyle = '#2a2444'; c.fillText('·', k * cw + cw / 2, r * ch); } } }
+      else if ((k / step) % 3 === 0 && r % 2 === 0) { c.fillStyle = '#2a2444'; c.fillText('·', k * cw + cw / 2, r * ch); } } }
   // graticule
   c.strokeStyle = 'rgba(139,92,255,.22)'; c.lineWidth = Math.max(1, W / 2048); for (let lon = -180; lon <= 180; lon += 30) { const x = (lon + 180) / 360 * W; c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); } for (let lat = -60; lat <= 60; lat += 30) { const y = (90 - lat) / 180 * H; c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
   return tex(cv);
@@ -129,7 +129,7 @@ async function boot() {
   maxAniso = Math.min(8, R.capabilities.getMaxAnisotropy());
   scene = new THREE.Scene();
   const sky = document.createElement('canvas'); sky.width = 4; sky.height = 512; const sx = sky.getContext('2d'), sg = sx.createLinearGradient(0, 0, 0, 512);
-  sg.addColorStop(0, '#06050b'); sg.addColorStop(.55, '#0f0b1d'); sg.addColorStop(.8, '#1c1438'); sg.addColorStop(1, '#2a1c55'); sx.fillStyle = sg; sx.fillRect(0, 0, 4, 512); scene.background = tex(sky);
+  sg.addColorStop(0, '#06050b'); sg.addColorStop(.6, '#0b0916'); sg.addColorStop(1, '#151027'); sx.fillStyle = sg; sx.fillRect(0, 0, 4, 512); scene.background = tex(sky);
   const pm = new THREE.PMREMGenerator(R); scene.environment = pm.fromScene(new RoomEnvironment(R), .04).texture;
   cam = new THREE.PerspectiveCamera(32, 1, .1, 200);
   const key = new THREE.DirectionalLight(0xffffff, 1.4); key.position.set(-4, 6, 8); scene.add(key);
@@ -139,7 +139,12 @@ async function boot() {
   // globe
   const img = new Image(); img.src = '/assets/land.png'; try { await img.decode(); globeTex.mask = img; } catch (e) {}
   gGroup = new THREE.Group(); scene.add(gGroup);
-  const GR = 16; globe = new THREE.Mesh(new THREE.SphereGeometry(GR, 96, 64), new THREE.MeshBasicMaterial({ map: globeTex.mask ? globeTex(PHONE ? 2048 : 4096) : null, color: globeTex.mask ? 0xffffff : 0x0d0b16 })); gGroup.add(globe);
+  const GR = 16, gmap = globeTex.mask ? globeTex(PHONE ? 2048 : 4096) : null;
+  // the land fades toward the limb so the edge reads as one clean ring, not packed glyphs
+  const gmat = gmap ? new THREE.ShaderMaterial({ uniforms: { map: { value: gmap } },
+    vertexShader: 'varying vec2 vUv; varying vec3 n; varying vec3 v; void main(){ vUv = uv; vec4 mv = modelViewMatrix * vec4(position, 1.); n = normalize(normalMatrix * normal); v = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
+    fragmentShader: 'uniform sampler2D map; varying vec2 vUv; varying vec3 n; varying vec3 v; void main(){ vec3 c = texture2D(map, vUv).rgb * vec3(.82, .8, .92); float f = dot(normalize(n), normalize(v)); c *= smoothstep(.12, .62, f); gl_FragColor = vec4(c, 1.);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}' }) : new THREE.MeshBasicMaterial({ color: 0x0d0b16 });
+  globe = new THREE.Mesh(new THREE.SphereGeometry(GR, 96, 64), gmat); gGroup.add(globe);
   const rimM = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { c: { value: new THREE.Color('#b49bff') } },
     vertexShader: 'varying vec3 n; varying vec3 v; void main(){ vec4 mv = modelViewMatrix * vec4(position,1.); n = normalize(normalMatrix * normal); v = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
     fragmentShader: 'uniform vec3 c; varying vec3 n; varying vec3 v; void main(){ float f = 1. - abs(dot(n, v)); float a = smoothstep(.86, .985, f) * .9; gl_FragColor = vec4(c * a, a); }' });
@@ -178,7 +183,8 @@ function start() { ui().style.visibility = ''; state = 'intro'; T0 = performance
 function fit() { if (!R) return; const w = innerWidth, h = innerHeight; R.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix();
   const D = 10, visH = 2 * D * Math.tan(THREE.MathUtils.degToRad(16)), visW = visH * cam.aspect, port = cam.aspect < 1;
   const hw = Math.min(visW * (port ? .64 : .29), visH * .36 * 1.5455), s = hw / 3.4;
-  fitInfo = { s, port, visW, visH, hy: port ? .62 : .62, rx: port ? visW * .5 : Math.min(visW * .27, 4.2), gy: port ? -11.2 : -19.6, gz: port ? -2 : -8, gr: port ? 9 : 16 };
+  fitInfo = { s, port, visW, visH, hy: port ? .25 : .62, rx: port ? visW * .5 : Math.min(visW * .27, 4.2), gz: -14 };
+  { const half = (10 - fitInfo.gz) * Math.tan(THREE.MathUtils.degToRad(16)); fitInfo.gr = port ? Math.min(half * cam.aspect * .95, half * .55) : Math.min(half * .68, half * cam.aspect * .42); fitInfo.gy = port ? fitInfo.hy * .9 : fitInfo.hy * .55 - .1; }
   gGroup.position.set(0, fitInfo.gy, fitInfo.gz); gGroup.scale.setScalar(fitInfo.gr / 16);
   // put the buttons just under the hero envelope
   cam.position.set(0, .25, 10); cam.lookAt(0, .1, 0); cam.updateMatrixWorld();
@@ -187,7 +193,7 @@ function loop() { cancelAnimationFrame(raf); const f = now => { if (!html.classL
 function frame(now) {
   const t = (now - T0) / 1000, tt = RM ? 0 : now / 1000, { s, hy, rx, port } = fitInfo;
   ptr.sx += (ptr.x - ptr.sx) * .06; ptr.sy += (ptr.y - ptr.sy) * .06;
-  stars.material.uniforms.t.value = tt; gGroup.rotation.set(port ? .5 : .42, tt * .035 + 1.1, 0);
+  stars.material.uniforms.t.value = tt; gGroup.rotation.set(.2, tt * .06 + 1.1, .1);
   routes.forEach(r => { const k = ((tt / r.dur + r.sp0) % 1), j = k * 64, a = Math.floor(j), p = r.pts[a].clone().lerp(r.pts[Math.min(64, a + 1)], j - a); r.sp.position.copy(p); r.sp.material.opacity = Math.sin(Math.PI * k); });
   // hero: drop in, float, a slow flip that shows the seal now and then
   const di = RM ? 1 : cl((t - .1) / 1.15), e = ease.back(di);
