@@ -66,6 +66,7 @@ function openSheet() {
   $('#sheet').classList.add('on');
 }
 const closeSheet = () => $('#sheet').classList.remove('on');
+window.zendApi = { connect: () => openSheet(), pk: () => WAL.pk, onWallet: f => onWallet.push(f), short };
 $('#connect').onclick = openSheet; $('#sheetX').onclick = closeSheet; $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
 addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
 async function silent() { let id; try { id = localStorage.getItem('zend:w'); } catch (e) {} const w = WALLETS.find(x => x.id === id), p = w && w.get(); if (!p) return; try { await p.connect({ onlyIfTrusted: true }); if (p.publicKey) setWallet(p, w.id); } catch (e) {} }
@@ -553,7 +554,7 @@ const wordmark = (() => { const el = $('.logo'), html = el.innerHTML, txt = el.t
       for (let i = 0; i < q2.txt.length; i++) { const c = c0 + tr - (q2.txt.length - 1) + i; if (c <= c0 + .5) continue; const g = q2.txt[i]; put(c, q2.r, g, i === 0 ? '#3ddc84' : arr > 0 && i >= arr ? (i === arr ? '#4f4a66' : '#8a85a3') : /[\d.]/.test(g) ? '#c9f7dc' : q2.sol ? '#9d8ce0' : '#7cc0ff', fade); }
       return fade > 0 && c0 + tr - q2.txt.length < COLS + 2; });
     x.globalAlpha = 1; };
-  const frame = now => { requestAnimationFrame(frame); if (!vis || document.hidden || now - last < 33) return; if (wrap.clientWidth !== W || wrap.clientHeight !== H) fit(); draw(now); };
+  const frame = now => { requestAnimationFrame(frame); if (!vis || document.hidden || now - last < 33 || document.documentElement.classList.contains('landing')) return; if (wrap.clientWidth !== W || wrap.clientHeight !== H) fit(); draw(now); };
   const go = () => { fit(); if (RM) { for (let i = 0; i < 40; i++) spawn(); pk.forEach(p => p.x = Math.random() * (RK + 8)); last = performance.now(); draw(last); return; } last = performance.now(); requestAnimationFrame(frame); };
   (document.fonts ? document.fonts.ready : Promise.resolve()).then(go); let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { fit(); if (RM) draw(performance.now()); }, 200); });
   new IntersectionObserver(([e]) => { vis = e.isIntersecting; if (vis) { fit(); if (RM) draw(performance.now()); } }).observe(wrap);
@@ -687,4 +688,5 @@ const side = (() => {
 hist.render(); contacts.render(); hist.poll(); setInterval(() => hist.poll(), 20000); silent(); setInterval(() => live.load(), 30000);
 { const m = (location.hash.match(/^#([a-z]+)$/) || [])[1]; if (m && MODS.includes(m)) show(m, { keepHash: true }); else dockSet(!$('#log').children.length); }
 wordmark.run(); cli.boot();
+$('#brand').onclick = () => { if (window.zendLand) window.zendLand.open(); else show('home'); };
 })();
